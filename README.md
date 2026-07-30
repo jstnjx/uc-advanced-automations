@@ -53,7 +53,7 @@ The integration uses two listeners:
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.3.0-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.1-aarch64.tar.gz
 ```
 
 Do not extract it.
@@ -116,7 +116,18 @@ Then:
 6. Add the discovered **Advanced Automations** integration in the Web Configurator.
 7. Add its remote entity to a profile or activity.
 
-Docker host networking is used so mDNS and LAN access work without additional forwarding.
+Docker host networking is used for direct LAN access. Integration mDNS publishing is disabled by default in external mode because managed integrations are registered explicitly with the Remote.
+
+### UC External Integration Installer
+
+When installed through `uc-external-integration-installer`, the container follows the installer's runtime contract:
+
+- persistent configuration uses the installer's `/config` mount;
+- the Integration API listens on the port assigned by the installer;
+- the web interface defaults to the assigned Integration API port plus `10000` to avoid colliding with other host-network containers;
+- `UC_AUTOMATIONS_WEB_PORT` can override that companion port.
+
+For example, an installer-assigned Integration API port of `8000` gives a default web-interface port of `18000`. The selected port is printed in the container startup log and returned by `/api/health` and `/api/status`. If that port is unavailable, the integration automatically selects another free port instead of exiting.
 
 ## External native installation
 
@@ -209,13 +220,13 @@ Useful for Home Assistant webhooks, Tasmota commands, Node-RED endpoints and oth
 | `UC_RUNTIME_MODE` | auto | Force `remote` or `external` mode |
 | `UC_EXTERNAL` | unset | Set to `true` for external deployments |
 | `UC_CONFIG_HOME` | supplied by Remote | Remote-managed configuration directory |
-| `UC_AUTOMATIONS_DATA_DIR` | target-specific | Override persistent configuration directory |
+| `UC_AUTOMATIONS_DATA_DIR` | target-specific | Override persistent configuration directory; installer-managed containers default to `/config` |
 | `UC_CORE_URL` | target-specific | Override the initial Core WebSocket URL |
 | `UC_AUTOMATIONS_WEB_HOST` | `0.0.0.0` | Initial web interface bind address |
-| `UC_AUTOMATIONS_WEB_PORT` | `8099` | Initial web interface port |
+| `UC_AUTOMATIONS_WEB_PORT` | target-specific | Initial web interface port; installer-managed containers default to Integration API port + `10000` |
 | `UC_INTEGRATION_INTERFACE` | all interfaces | Integration API bind address |
 | `UC_INTEGRATION_HTTP_PORT` | `9090` | Integration API port |
-| `UC_DISABLE_MDNS_PUBLISH` | `false` | Disable integration mDNS advertisement |
+| `UC_DISABLE_MDNS_PUBLISH` | external: `true`; Remote: `false` | Disable integration mDNS advertisement |
 
 The web host and port are persisted after first start. Changing them in the web interface requires a restart.
 

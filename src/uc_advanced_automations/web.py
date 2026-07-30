@@ -45,6 +45,7 @@ def create_app(
     integration: "IntegrationController",
     triggers: TriggerManager,
     runtime: RuntimeEnvironment,
+    service_status: dict[str, Any] | None = None,
 ) -> web.Application:
     app = web.Application(middlewares=[error_middleware], client_max_size=2 * 1024 * 1024)
     app.update(
@@ -54,9 +55,11 @@ def create_app(
         integration=integration,
         triggers=triggers,
         runtime=runtime,
+        service_status=service_status if service_status is not None else {},
     )
 
     app.router.add_get("/", index)
+    app.router.add_get("/api/health", get_health)
     app.router.add_get("/api/status", get_status)
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings", update_settings)
@@ -76,6 +79,25 @@ def create_app(
 
 async def index(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(STATIC_DIR / "index.html")
+
+
+async def get_health(request: web.Request) -> web.Response:
+    """Container liveness endpoint; detailed readiness remains in the payload."""
+
+    status = request.app["service_status"]
+    core: CoreClient = request.app["core"]
+    runtime: RuntimeEnvironment = request.app["runtime"]
+    return web.json_response(
+        {
+            "status": "ok",
+            "runtime_mode": runtime.mode,
+            "integration_api_ready": bool(status.get("integration_api_ready")),
+            "integration_api_error": status.get("integration_api_error"),
+            "core_connected": core.is_connected,
+            "web_port": status.get("web_port"),
+            "web_port_fallback": bool(status.get("web_port_fallback")),
+        }
+    )
 
 
 async def get_status(request: web.Request) -> web.Response:
@@ -99,7 +121,9 @@ async def get_status(request: web.Request) -> web.Response:
             "runtime_mode": runtime.mode,
             "runtime_name": runtime.display_name,
             "runs_on_remote": runtime.runs_on_remote,
-            "web_port": store.settings().web_port,
+            "web_port": request.app["service_status"].get("web_port", store.settings().web_port),
+            "web_port_configured": store.settings().web_port,
+            "services": dict(request.app["service_status"]),
         }
     )
 

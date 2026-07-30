@@ -37,3 +37,6 @@ printf 'v%s\n' "$VERSION" > artifacts/version.txt
 
 tar -czf "${NAME}.tar.gz" -C artifacts .
 printf '%s\n' "${ROOT_DIR}/${NAME}.tar.gz"
+
+# Verify the exact archive before returning it to the caller.
+bash ./tools/verify_remote_archive.sh "${NAME}.tar.gz"

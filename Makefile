@@ -11,11 +11,11 @@ build-wheel:
 # Run this on ARM64 Linux, or inside the official Unfolded Circle ARM64
 # PyInstaller container. The output is directly installable with Install custom.
 build-remote:
-	./tools/build_remote.sh aarch64
+	bash ./tools/build_remote.sh aarch64
 
 verify-remote:
 	@test -n "$(ARCHIVE)" || (echo "Usage: make verify-remote ARCHIVE=uc-intg-...tar.gz" && exit 2)
-	./tools/verify_remote_archive.sh "$(ARCHIVE)"
+	bash ./tools/verify_remote_archive.sh "$(ARCHIVE)"
 
 clean:
 	rm -rf build artifacts dist *.spec *.tar.gz

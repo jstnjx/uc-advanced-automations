@@ -25,6 +25,37 @@ jobs:
           node-version: "22"
       - run: python -m pip install -r requirements.txt
       - run: make test
+      - name: Build and smoke-test external container
+        run: |
+          set -euo pipefail
+          docker build --tag uc-advanced-automations:ci .
+          docker run --detach --name uc-advanced-automations-ci \
+            --publish 18099:8099 \
+            --publish 19090:9090 \
+            uc-advanced-automations:ci
+          cleanup() {
+            docker logs uc-advanced-automations-ci || true
+            docker rm --force uc-advanced-automations-ci >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 30); do
+            if ! docker inspect uc-advanced-automations-ci >/dev/null 2>&1; then
+              echo "Container disappeared during startup" >&2
+              exit 1
+            fi
+            state="$(docker inspect --format '{{.State.Status}}' uc-advanced-automations-ci)"
+            if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+              echo "Container exited during startup" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error http://127.0.0.1:18099/api/health > health.json; then
+              cat health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health endpoint did not become ready" >&2
+          exit 1
 
   remote-package:
     runs-on: ubuntu-24.04
@@ -47,12 +78,12 @@ jobs:
             --user="$(id -u):$(id -g)" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             "${PYINSTALLER_IMAGE}" \
-            bash -lc 'cd /workspace && python -m pip install -r requirements-build.txt && ./tools/build_remote.sh aarch64'
+            bash -lc 'cd /workspace && python -m pip install -r requirements-build.txt && bash ./tools/build_remote.sh aarch64'
       - name: Verify ARM64 archive and checksum
         run: |
           ARCHIVE="$(find . -maxdepth 1 -name 'uc-intg-advanced-automations-*-aarch64.tar.gz' -print -quit)"
           test -n "$ARCHIVE"
-          ./tools/verify_remote_archive.sh "$ARCHIVE"
+          bash ./tools/verify_remote_archive.sh "$ARCHIVE"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
       - uses: actions/upload-artifact@v7
         with:

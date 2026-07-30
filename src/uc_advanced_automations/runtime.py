@@ -32,6 +32,21 @@ class RuntimeEnvironment:
     def display_name(self) -> str:
         return "Remote Two/3" if self.runs_on_remote else "External service"
 
+    def apply_process_environment(self, integration_port: int = 9090) -> None:
+        """Apply target-specific defaults before ``ucapi`` initializes.
+
+        External installers already know the container endpoint and do not need
+        the driver to register an mDNS service from inside Docker. Zeroconf can
+        fail or block in restricted container networks, so it is disabled by
+        default for the external target. Every value remains overridable by an
+        explicitly supplied environment variable.
+        """
+
+        os.environ.setdefault("UC_INTEGRATION_HTTP_PORT", str(integration_port))
+        if self.mode == "external":
+            os.environ.setdefault("UC_INTEGRATION_INTERFACE", "0.0.0.0")
+            os.environ.setdefault("UC_DISABLE_MDNS_PUBLISH", "true")
+
 
 def detect_runtime() -> RuntimeEnvironment:
     """Detect Remote installation or external service operation.
