@@ -61,12 +61,13 @@ class StartupTests(unittest.IsolatedAsyncioTestCase):
             _site, actual_port = await start_web_site(
                 runner,
                 "127.0.0.1",
-                39091,
-                39091,
+                9201,
+                9201,
                 status,
                 port_file,
             )
-            self.assertNotEqual(actual_port, 39091)
+            self.assertEqual(actual_port, 9202)
+            self.assertGreaterEqual(actual_port, 9201)
             self.assertEqual(int(port_file.read_text().strip()), actual_port)
             self.assertTrue(status["web_port_fallback"])
         await runner.cleanup()
@@ -107,6 +108,79 @@ class ConfigurationRecoveryTests(unittest.TestCase):
             self.assertEqual([item.command for item in store.automations()], ["LEGACY"])
             self.assertTrue(store.automations()[0].command_enabled)
 
+    def test_legacy_installer_companion_web_port_is_migrated(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {
+                "UC_RUNTIME_MODE": "external",
+                "UC_CONFIG_HOME": directory,
+                "UC_AUTOMATIONS_DATA_DIR": directory,
+                "UC_INTEGRATION_HTTP_PORT": "8123",
+                "UC_AUTOMATIONS_WEB_PORT": "9201",
+            },
+            clear=True,
+        ):
+            raw = {
+                "settings": {
+                    "core_url": "ws://remote.local/ws",
+                    "web_host": "0.0.0.0",
+                    "web_port": 18123,
+                },
+                "automations": [],
+            }
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            store = ConfigStore()
+            self.assertEqual(store.settings().web_port, 9201)
+            self.assertEqual(json.loads(path.read_text())["settings"]["web_port"], 9201)
+
+    def test_explicit_nonlegacy_web_port_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {
+                "UC_RUNTIME_MODE": "external",
+                "UC_CONFIG_HOME": directory,
+                "UC_AUTOMATIONS_DATA_DIR": directory,
+                "UC_INTEGRATION_HTTP_PORT": "8123",
+                "UC_AUTOMATIONS_WEB_PORT": "9201",
+            },
+            clear=True,
+        ):
+            raw = {
+                "settings": {
+                    "core_url": "ws://remote.local/ws",
+                    "web_host": "0.0.0.0",
+                    "web_port": 18124,
+                },
+                "automations": [],
+            }
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            store = ConfigStore()
+            self.assertEqual(store.settings().web_port, 18124)
+
+    def test_reserved_editor_port_is_migrated_to_9201(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {
+                "UC_RUNTIME_MODE": "external",
+                "UC_AUTOMATIONS_DATA_DIR": directory,
+                "UC_AUTOMATIONS_WEB_PORT": "9201",
+            },
+            clear=True,
+        ):
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps({
+                "settings": {
+                    "core_url": "ws://remote.local/ws",
+                    "web_host": "0.0.0.0",
+                    "web_port": 8099,
+                },
+                "automations": [],
+            }), encoding="utf-8")
+            store = ConfigStore()
+            self.assertEqual(store.settings().web_port, 9201)
+
     def test_command_handler_exposes_ucapi_websocket_parameter(self):
         import inspect
         signature = inspect.signature(IntegrationController.command_handler)
@@ -132,6 +206,18 @@ class RuntimeEnvironmentTests(unittest.TestCase):
             self.assertEqual(os.environ["UC_INTEGRATION_INTERFACE"], "0.0.0.0")
             self.assertEqual(os.environ["UC_INTEGRATION_HTTP_PORT"], "19090")
 
+    def test_reserved_environment_web_port_is_normalized(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {
+                "UC_RUNTIME_MODE": "external",
+                "UC_AUTOMATIONS_DATA_DIR": directory,
+                "UC_AUTOMATIONS_WEB_PORT": "9200",
+            },
+            clear=True,
+        ):
+            self.assertEqual(detect_runtime().web_port, 9201)
+
     def test_explicit_mdns_setting_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             "os.environ",
@@ -151,7 +237,7 @@ class RuntimeEnvironmentTests(unittest.TestCase):
 
 class PackagingContractTests(unittest.TestCase):
 
-    def test_installer_entrypoint_uses_config_mount_and_companion_web_port(self):
+    def test_installer_entrypoint_uses_config_mount_and_stable_web_port(self):
         with tempfile.TemporaryDirectory() as directory:
             env = {
                 "PATH": os.environ.get("PATH", ""),
@@ -175,7 +261,7 @@ class PackagingContractTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            self.assertEqual(result.stdout, f"{directory}|18123")
+            self.assertEqual(result.stdout, f"{directory}|9201")
 
     def test_remote_workflow_does_not_execute_scripts_directly(self):
         workflow = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
@@ -205,7 +291,9 @@ class PackagingContractTests(unittest.TestCase):
         entrypoint = Path("tools/docker-entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn('exec "$@"', entrypoint)
         self.assertIn('UC_CONFIG_HOME', entrypoint)
-        self.assertIn('$((UC_INTEGRATION_HTTP_PORT + 10000))', entrypoint)
+        self.assertIn('UC_AUTOMATIONS_WEB_PORT="${UC_AUTOMATIONS_WEB_PORT:-9201}"', entrypoint)
+        html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
+        self.assertIn('id="webPort" type="number" min="9201"', html)
 
 
 if __name__ == "__main__":

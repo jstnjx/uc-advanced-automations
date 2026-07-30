@@ -46,14 +46,14 @@ The integration uses two listeners:
 | Service | Default port | Purpose |
 |---|---:|---|
 | Integration API | `9090` | Connection from Remote Two/3 |
-| Web interface | `8099` | Automation editor |
+| Web interface | `9201` | Automation editor |
 
 ## Installation on Remote Two/3
 
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.3.3-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.5-aarch64.tar.gz
 ```
 
 Do not extract it.
@@ -63,7 +63,7 @@ Do not extract it.
 3. Select **Add new** → **Install custom**.
 4. Upload the `.tar.gz` archive.
 5. Open **Advanced Automations** and start setup.
-6. Open `http://REMOTE-IP:8099` in a browser.
+6. Open `http://REMOTE-IP:9201` in a browser.
 7. Configure a Core API key and create automations.
 
 In embedded mode, the integration connects back to the local Remote Core API through `ws://127.0.0.1/ws`. Configuration remains on the Remote in its integration-managed data directory.
@@ -123,7 +123,7 @@ docker compose up -d --build
 Open:
 
 ```text
-http://SERVER-IP:8099
+http://SERVER-IP:9201
 ```
 
 Then:
@@ -143,11 +143,12 @@ Docker host networking is used for direct LAN access. Integration mDNS publishin
 When installed through `uc-external-integration-installer`, the container follows the installer's runtime contract:
 
 - persistent configuration uses the installer's `/config` mount;
-- the Integration API listens on the port assigned by the installer;
-- the web interface defaults to the assigned Integration API port plus `10000` to avoid colliding with other host-network containers;
-- `UC_AUTOMATIONS_WEB_PORT` can override that companion port.
+- the Integration API listens on the port assigned by the installer in the UC-reserved `8000`–`9200` range;
+- the automation editor starts at `9201`, outside that reserved range;
+- `UC_AUTOMATIONS_WEB_PORT` can select another port from `9201` through `65535`;
+- if the selected editor port is occupied, the integration scans upward (`9202`, `9203`, …) until a free port is found.
 
-For example, an installer-assigned Integration API port of `8000` gives a default web-interface port of `18000`. The selected port is printed in the container startup log and returned by `/api/health` and `/api/status`. If that port is unavailable, the integration automatically selects another free port instead of exiting.
+The selected editor port is printed as `AUTOMATION EDITOR URL` in the container log, written to `/config/web-port.txt`, and returned by `/api/health` and `/api/status`.
 
 ## External native installation
 
@@ -173,7 +174,7 @@ The included systemd unit assumes:
 
 Both targets use the Remote Core API to read entity state and execute commands. Create an API key through the Remote's API access configuration or the Core REST API `auth/api_keys` endpoint, then enter it in **Settings**.
 
-The key is stored in `config.json` with owner-only file permissions. It is not encrypted. Do not expose port `8099` directly to the internet.
+The key is stored in `config.json` with owner-only file permissions. It is not encrypted. Do not expose port `9201` directly to the internet.
 
 ## Step types
 
@@ -243,7 +244,7 @@ Useful for Home Assistant webhooks, Tasmota commands, Node-RED endpoints and oth
 | `UC_AUTOMATIONS_DATA_DIR` | target-specific | Override persistent configuration directory; installer-managed containers default to `/config` |
 | `UC_CORE_URL` | target-specific | Override the initial Core WebSocket URL |
 | `UC_AUTOMATIONS_WEB_HOST` | `0.0.0.0` | Initial web interface bind address |
-| `UC_AUTOMATIONS_WEB_PORT` | target-specific | Initial web interface port; installer-managed containers default to Integration API port + `10000` |
+| `UC_AUTOMATIONS_WEB_PORT` | `9201` | Preferred web interface port; must be 9201 or higher and scans upward if occupied |
 | `UC_INTEGRATION_INTERFACE` | all interfaces | Integration API bind address |
 | `UC_INTEGRATION_HTTP_PORT` | `9090` | Integration API port |
 | `UC_DISABLE_MDNS_PUBLISH` | external: `true`; Remote: `false` | Disable integration mDNS advertisement |

@@ -36,7 +36,7 @@ class Settings(BaseModel):
     core_url: str = "ws://remote.local/ws"
     api_key: str = ""
     web_host: str = "0.0.0.0"
-    web_port: int = Field(default=8099, ge=1, le=65535)
+    web_port: int = Field(default=9201, ge=9201, le=65535)
     timezone: str = "Europe/Berlin"
     request_timeout_seconds: float = Field(default=10, ge=1, le=120)
 

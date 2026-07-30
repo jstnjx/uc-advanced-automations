@@ -83,9 +83,15 @@ def detect_runtime() -> RuntimeEnvironment:
     )
     web_host = os.environ.get("UC_AUTOMATIONS_WEB_HOST", "0.0.0.0")
     try:
-        web_port = int(os.environ.get("UC_AUTOMATIONS_WEB_PORT", "8099"))
+        web_port = int(os.environ.get("UC_AUTOMATIONS_WEB_PORT", "9201"))
     except ValueError as err:
         raise ValueError("UC_AUTOMATIONS_WEB_PORT must be an integer") from err
+    if web_port > 65535:
+        raise ValueError("UC_AUTOMATIONS_WEB_PORT must be between 9201 and 65535")
+    # Normalize legacy container overrides from the UC-reserved range. New
+    # settings submitted through the API are still rejected by the model.
+    if web_port < 9201:
+        web_port = 9201
 
     return RuntimeEnvironment(
         mode=mode,

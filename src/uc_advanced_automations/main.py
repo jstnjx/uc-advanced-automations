@@ -31,7 +31,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.3.3: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v0.3.5: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,
@@ -100,7 +100,7 @@ async def run() -> None:
         service_status,
     )
     _LOG.info(
-        "Web interface listening on http://%s:%d",
+        "AUTOMATION EDITOR URL: http://%s:%d/",
         settings.web_host,
         actual_web_port,
     )

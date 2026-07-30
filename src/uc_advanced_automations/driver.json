@@ -1,6 +1,6 @@
 {
   "driver_id": "advanced_automations",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "min_core_api": "0.35.0",
   "name": {
     "en": "Advanced Automations"
@@ -28,7 +28,7 @@
         "field": {
           "label": {
             "value": {
-              "en": "Run Advanced Automations directly on this Remote or as an external service. Open the web interface on port 8099, configure a Remote Core API key, then create command-driven or background state-change automations. Generated commands and touchscreen pages refresh automatically after changes."
+              "en": "Run Advanced Automations directly on this Remote or as an external service. The automation editor uses port 9201 by default and scans upward if that port is occupied, keeping it outside the UC-reserved 8000-9200 range. Configure a Remote Core API key, then create command-driven or background state-change automations. Generated commands and touchscreen pages refresh automatically after changes."
             }
           }
         }

@@ -67,11 +67,15 @@ class ConfigStore:
             raw: Any = None
             try:
                 raw = json.loads(self.path.read_text(encoding="utf-8"))
+                raw_migrated = self._migrate_raw_reserved_web_port(raw)
                 self._config = AppConfig.model_validate(raw)
+                if raw_migrated or self._migrate_reserved_web_port():
+                    self.save()
                 return self.snapshot()
             except (OSError, UnicodeError, json.JSONDecodeError, ValidationError, ValueError, TypeError) as err:
                 backup = self._backup_invalid_config()
                 self._config, skipped = self._salvage_config(raw)
+                self._migrate_reserved_web_port()
                 self._recovery = {
                     "config_recovered": True,
                     "config_backup": str(backup) if backup else None,
@@ -86,6 +90,61 @@ class ConfigStore:
                 )
                 self.save()
                 return self.snapshot()
+
+    def _migrate_raw_reserved_web_port(self, raw: Any) -> bool:
+        """Normalize persisted pre-0.3.5 editor ports before strict validation."""
+
+        if not isinstance(raw, dict):
+            return False
+        settings = raw.get("settings")
+        if not isinstance(settings, dict):
+            return False
+        try:
+            current = int(settings.get("web_port"))
+        except (TypeError, ValueError):
+            return False
+        if current > 9200:
+            return False
+        settings["web_port"] = self.runtime.web_port
+        _LOG.info(
+            "Migrating persisted UC-reserved editor port from %d to %d",
+            current,
+            self.runtime.web_port,
+        )
+        return True
+
+    def _migrate_reserved_web_port(self) -> bool:
+        """Move legacy or UC-reserved editor ports to the current safe default.
+
+        Versions through 0.3.4 used port 8099 or an Integration-API-plus-10000
+        companion port. Ports 8000-9200 are reserved for UC services, so every
+        persisted editor port in that range is migrated to 9201. The former
+        automatically selected companion port is migrated as well. Explicit
+        custom ports above 9200 are preserved.
+        """
+
+        current = self._config.settings.web_port
+        requested = self.runtime.web_port
+        migrate = current <= 9200
+
+        if self.runtime.mode == "external" and os.environ.get("UC_CONFIG_HOME"):
+            try:
+                integration_port = int(os.environ.get("UC_INTEGRATION_HTTP_PORT", "9090"))
+            except ValueError:
+                integration_port = 9090
+            old_companion = integration_port + 10000
+            migrate = migrate or current == old_companion
+
+        if not migrate or current == requested:
+            return False
+
+        self._config.settings = self._config.settings.model_copy(update={"web_port": requested})
+        _LOG.info(
+            "Migrated editor web port from %d to %d to avoid the UC-reserved range",
+            current,
+            requested,
+        )
+        return True
 
     def _salvage_config(self, raw: Any) -> tuple[AppConfig, int]:
         """Keep every individually valid setting and automation from legacy/broken data."""

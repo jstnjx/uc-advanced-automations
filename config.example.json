@@ -3,7 +3,7 @@
     "core_url": "ws://remote.local/ws",
     "api_key": "",
     "web_host": "0.0.0.0",
-    "web_port": 8099,
+    "web_port": 9201,
     "timezone": "Europe/Berlin",
     "request_timeout_seconds": 10
   },

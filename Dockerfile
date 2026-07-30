@@ -16,7 +16,7 @@ RUN python -m pip install --no-cache-dir . \
     && chmod 0777 /data
 
 VOLUME ["/data"]
-EXPOSE 8099 9090
+EXPOSE 9201 9090
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD ["python", "/app/tools/healthcheck.py"]

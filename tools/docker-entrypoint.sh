@@ -19,21 +19,9 @@ if [ -z "${UC_AUTOMATIONS_DATA_DIR:-}" ]; then
   fi
 fi
 
-# The installer assigns the Integration API port dynamically but does not
-# allocate a second port for an integration-owned web UI. Avoid a fixed 8099
-# collision by deriving a high companion port for installer-managed instances.
-if [ -z "${UC_AUTOMATIONS_WEB_PORT:-}" ]; then
-  case "$UC_INTEGRATION_HTTP_PORT" in
-    ''|*[!0-9]*) export UC_AUTOMATIONS_WEB_PORT=8099 ;;
-    *)
-      if [ -n "${UC_CONFIG_HOME:-}" ] && [ "$UC_INTEGRATION_HTTP_PORT" -le 55535 ]; then
-        export UC_AUTOMATIONS_WEB_PORT=$((UC_INTEGRATION_HTTP_PORT + 10000))
-      else
-        export UC_AUTOMATIONS_WEB_PORT=8099
-      fi
-      ;;
-  esac
-fi
+# Keep the documented automation-editor port stable in installer-managed
+# deployments. The Python startup allocator scans upward from 9201 when the port is occupied.
+export UC_AUTOMATIONS_WEB_PORT="${UC_AUTOMATIONS_WEB_PORT:-9201}"
 
 mkdir -p "$UC_AUTOMATIONS_DATA_DIR"
 # Mounted volumes can be created with restrictive ownership by an installer.

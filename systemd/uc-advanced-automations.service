@@ -12,6 +12,7 @@ Environment=UC_EXTERNAL=true
 Environment=UC_AUTOMATIONS_DATA_DIR=/var/lib/uc-advanced-automations
 Environment=UC_INTEGRATION_INTERFACE=0.0.0.0
 Environment=UC_INTEGRATION_HTTP_PORT=9090
+Environment=UC_AUTOMATIONS_WEB_PORT=9201
 ExecStart=/opt/uc-advanced-automations/.venv/bin/uc-advanced-automations
 Restart=on-failure
 RestartSec=5

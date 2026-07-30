@@ -33,7 +33,7 @@ jobs:
           NAME="uc-advanced-automations-ci"
           CONFIG_DIR="${RUNNER_TEMP}/uc-aa-config"
           INTEGRATION_PORT=19090
-          WEB_PORT=29090
+          WEB_PORT=9201
           rm -rf "$CONFIG_DIR"
           mkdir -p "$CONFIG_DIR"
           # Reproduce a stale/corrupt configuration left by an earlier failed install.

@@ -39,21 +39,16 @@ async def initialize_integration_api(
 
 
 def _web_port_candidates(requested_port: int, integration_port: int) -> list[int]:
-    """Return ordered web-port candidates avoiding the Integration API port."""
+    """Return ordered editor-port candidates outside the UC-reserved range.
 
-    candidates: list[int] = []
+    Ports 8000-9200 are reserved for UC Integration API services. The editor
+    therefore starts at 9201 or the explicitly requested higher port and scans
+    upward on conflicts without ever selecting a reserved port.
+    """
 
-    def add(port: int) -> None:
-        if 1 <= port <= 65535 and port != integration_port and port not in candidates:
-            candidates.append(port)
-
-    add(requested_port)
-    add(integration_port + 10000)
-    for offset in range(1, 33):
-        add(requested_port + offset)
-    # Port 0 asks the OS for a free ephemeral port and is the final fallback.
-    candidates.append(0)
-    return candidates
+    first = max(9201, requested_port)
+    ordered = list(range(first, 65536)) + list(range(9201, first))
+    return [port for port in ordered if port != integration_port]
 
 
 async def start_web_site(
@@ -92,6 +87,12 @@ async def start_web_site(
             Path(port_file).write_text(f"{actual_port}\n", encoding="utf-8")
         except OSError:
             _LOG.warning("Unable to write web-port healthcheck file: %s", port_file)
+        data_dir = os.environ.get("UC_AUTOMATIONS_DATA_DIR")
+        if data_dir:
+            try:
+                Path(data_dir, "web-port.txt").write_text(f"{actual_port}\n", encoding="utf-8")
+            except OSError:
+                _LOG.warning("Unable to write persistent web-port discovery file in %s", data_dir)
         if actual_port != requested_port:
             _LOG.warning(
                 "Configured web port %d was unavailable or conflicted with the Integration API; using %d",
