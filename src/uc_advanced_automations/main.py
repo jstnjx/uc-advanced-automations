@@ -31,7 +31,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.3.2: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v0.3.3: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,
@@ -47,9 +47,29 @@ async def run() -> None:
     core = CoreClient(store.settings)
     engine = AutomationEngine(core, lambda: store.settings().timezone)
     integration = IntegrationController(api, store, engine, core)
-    integration.sync_entity()
     triggers = TriggerManager(core, store, engine)
-    triggers.start()
+
+    service_status: dict[str, Any] = {
+        "integration_api_ready": False,
+        "integration_api_error": None,
+        "entity_definition_ready": False,
+        "entity_definition_error": None,
+        "trigger_manager_ready": False,
+        "trigger_manager_error": None,
+        **store.recovery_status,
+    }
+    try:
+        integration.sync_entity()
+        service_status["entity_definition_ready"] = True
+    except Exception as err:  # pragma: no cover - protects container startup
+        service_status["entity_definition_error"] = f"{type(err).__name__}: {err}"
+        _LOG.exception("Unable to build the initial integration entity; diagnostics remain available")
+    try:
+        triggers.start()
+        service_status["trigger_manager_ready"] = True
+    except Exception as err:  # pragma: no cover - protects container startup
+        service_status["trigger_manager_error"] = f"{type(err).__name__}: {err}"
+        _LOG.exception("Unable to start background triggers; command mode remains available")
 
     @api.listens_to(ucapi.Events.CONNECT)
     async def on_connect() -> None:
@@ -63,10 +83,6 @@ async def run() -> None:
         """Complete the informational setup flow shown by driver.json."""
         return ucapi.SetupComplete()
 
-    service_status: dict[str, Any] = {
-        "integration_api_ready": False,
-        "integration_api_error": None,
-    }
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
 
     app = create_app(store, core, engine, integration, triggers, runtime, service_status)

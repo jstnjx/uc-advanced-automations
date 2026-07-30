@@ -53,7 +53,7 @@ The integration uses two listeners:
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.3.2-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.3-aarch64.tar.gz
 ```
 
 Do not extract it.

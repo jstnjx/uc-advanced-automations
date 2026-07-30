@@ -96,6 +96,9 @@ async def get_health(request: web.Request) -> web.Response:
             "core_connected": core.is_connected,
             "web_port": status.get("web_port"),
             "web_port_fallback": bool(status.get("web_port_fallback")),
+            "config_recovered": bool(status.get("config_recovered")),
+            "config_backup": status.get("config_backup"),
+            "config_error": status.get("config_error"),
         }
     )
 

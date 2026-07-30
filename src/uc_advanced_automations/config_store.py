@@ -1,19 +1,27 @@
-"""Atomic JSON configuration persistence."""
+"""Atomic JSON configuration persistence with crash-safe recovery."""
 
 from __future__ import annotations
 
 import json
+import logging
 import os
+import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Callable
+from typing import Any, Callable
+from uuid import uuid4
+
+from pydantic import ValidationError
 
 from .models import AppConfig, Automation, Settings
 from .runtime import RuntimeEnvironment, detect_runtime
 
+_LOG = logging.getLogger(__name__)
+
 
 class ConfigStore:
-    """Read, validate and atomically persist application configuration."""
+    """Read, validate, migrate and atomically persist application configuration."""
 
     def __init__(
         self,
@@ -25,7 +33,19 @@ class ConfigStore:
         self.path = self.data_dir / "config.json"
         self._lock = RLock()
         self._config = self._default_config()
+        self._recovery: dict[str, Any] = {
+            "config_recovered": False,
+            "config_backup": None,
+            "config_error": None,
+            "config_skipped_automations": 0,
+        }
         self.load()
+
+    @property
+    def recovery_status(self) -> dict[str, Any]:
+        """Return details about any startup configuration recovery."""
+        with self._lock:
+            return dict(self._recovery)
 
     def _default_config(self) -> AppConfig:
         return AppConfig(
@@ -44,9 +64,117 @@ class ConfigStore:
                 self.save()
                 return self.snapshot()
 
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-            self._config = AppConfig.model_validate(raw)
-            return self.snapshot()
+            raw: Any = None
+            try:
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+                self._config = AppConfig.model_validate(raw)
+                return self.snapshot()
+            except (OSError, UnicodeError, json.JSONDecodeError, ValidationError, ValueError, TypeError) as err:
+                backup = self._backup_invalid_config()
+                self._config, skipped = self._salvage_config(raw)
+                self._recovery = {
+                    "config_recovered": True,
+                    "config_backup": str(backup) if backup else None,
+                    "config_error": f"{type(err).__name__}: {err}",
+                    "config_skipped_automations": skipped,
+                }
+                _LOG.error(
+                    "Invalid persisted configuration recovered: error=%s backup=%s skipped_automations=%d",
+                    self._recovery["config_error"],
+                    backup,
+                    skipped,
+                )
+                self.save()
+                return self.snapshot()
+
+    def _salvage_config(self, raw: Any) -> tuple[AppConfig, int]:
+        """Keep every individually valid setting and automation from legacy/broken data."""
+        default = self._default_config()
+        if not isinstance(raw, dict):
+            return default, 0
+
+        settings = default.settings
+        raw_settings = raw.get("settings")
+        if isinstance(raw_settings, dict):
+            accepted = settings.model_dump(mode="json")
+            for field_name in Settings.model_fields:
+                if field_name not in raw_settings:
+                    continue
+                candidate = dict(accepted)
+                candidate[field_name] = raw_settings[field_name]
+                try:
+                    settings = Settings.model_validate(candidate)
+                    accepted = settings.model_dump(mode="json")
+                except (ValidationError, ValueError, TypeError):
+                    _LOG.warning("Discarding invalid persisted setting: %s", field_name)
+
+        source_automations = raw.get("automations", [])
+        if not isinstance(source_automations, list):
+            source_automations = []
+
+        automations: list[Automation] = []
+        seen_ids: set[str] = set()
+        seen_commands: set[str] = set()
+        skipped = 0
+        for item in source_automations:
+            if not isinstance(item, dict):
+                skipped += 1
+                continue
+            migrated = dict(item)
+            migrated.setdefault("command_enabled", True)
+            migrated.setdefault("triggers", [])
+            try:
+                automation = Automation.model_validate(migrated)
+            except (ValidationError, ValueError, TypeError):
+                skipped += 1
+                continue
+
+            if automation.id in seen_ids:
+                automation = automation.model_copy(update={"id": str(uuid4())})
+            seen_ids.add(automation.id)
+
+            if automation.command_enabled and automation.command in seen_commands:
+                # Preserve the automation but disable only its duplicate command trigger.
+                automation = automation.model_copy(update={"command_enabled": False})
+            if automation.command_enabled:
+                seen_commands.add(automation.command)
+            automations.append(automation)
+
+        return AppConfig(settings=settings, automations=automations), skipped
+
+    def _backup_invalid_config(self) -> Path | None:
+        if not self.path.exists():
+            return None
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        suffix = ".dir" if self.path.is_dir() else ".json"
+        backup = self.data_dir / f"config.invalid-{stamp}{suffix}"
+        try:
+            if self.path.is_dir():
+                os.replace(self.path, backup)
+            else:
+                shutil.copy2(self.path, backup)
+            return backup
+        except OSError as copy_error:
+            # A read-protected file may still be movable when its parent directory is writable.
+            try:
+                os.replace(self.path, backup)
+                return backup
+            except OSError as move_error:
+                _LOG.error(
+                    "Unable to back up invalid configuration %s: copy=%s move=%s",
+                    self.path,
+                    copy_error,
+                    move_error,
+                )
+                return None
+
+    @staticmethod
+    def _best_effort_chmod(path: Path, mode: int) -> None:
+        try:
+            os.chmod(path, mode)
+        except OSError as err:
+            # FAT/CIFS/rootless bind mounts can reject chmod even though writes work.
+            _LOG.warning("Unable to set permissions on %s: %s", path, err)
 
     def save(self) -> None:
         with self._lock:
@@ -54,9 +182,9 @@ class ConfigStore:
             temp_path = self.path.with_suffix(".tmp")
             payload = self._config.model_dump(mode="json")
             temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            os.chmod(temp_path, 0o600)
+            self._best_effort_chmod(temp_path, 0o600)
             os.replace(temp_path, self.path)
-            os.chmod(self.path, 0o600)
+            self._best_effort_chmod(self.path, 0o600)
 
     def snapshot(self) -> AppConfig:
         with self._lock:

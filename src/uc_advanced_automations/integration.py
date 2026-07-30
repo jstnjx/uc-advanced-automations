@@ -209,7 +209,8 @@ class IntegrationController:
         _entity: ucapi.Remote,
         cmd_id: str,
         params: dict[str, Any] | None,
-        _websocket: Any,
+        *,
+        websocket: Any,
     ) -> ucapi.StatusCodes:
         if cmd_id != remote.Commands.SEND_CMD:
             return ucapi.StatusCodes.NOT_IMPLEMENTED

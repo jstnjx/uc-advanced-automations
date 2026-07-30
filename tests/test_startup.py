@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from uc_advanced_automations.startup import initialize_integration_api, start_web_site
+from uc_advanced_automations.config_store import ConfigStore
+from uc_advanced_automations.integration import IntegrationController
 from uc_advanced_automations.runtime import detect_runtime
 from uc_advanced_automations.web import create_app, get_health
 from aiohttp import web
@@ -68,6 +70,48 @@ class StartupTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(int(port_file.read_text().strip()), actual_port)
             self.assertTrue(status["web_port_fallback"])
         await runner.cleanup()
+
+
+class ConfigurationRecoveryTests(unittest.TestCase):
+    def test_invalid_json_is_backed_up_and_recovered(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {"UC_RUNTIME_MODE": "external", "UC_AUTOMATIONS_DATA_DIR": directory},
+            clear=True,
+        ):
+            path = Path(directory) / "config.json"
+            path.write_text("{invalid-json\n", encoding="utf-8")
+            store = ConfigStore()
+            status = store.recovery_status
+            self.assertTrue(status["config_recovered"])
+            self.assertTrue(Path(status["config_backup"]).is_file())
+            self.assertEqual(store.automations(), [])
+            json.loads(path.read_text(encoding="utf-8"))
+
+    def test_valid_legacy_automation_survives_partial_recovery(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {"UC_RUNTIME_MODE": "external", "UC_AUTOMATIONS_DATA_DIR": directory},
+            clear=True,
+        ):
+            raw = {
+                "settings": {"core_url": "ws://remote.local/ws", "web_port": "invalid"},
+                "automations": [
+                    {"name": "Legacy", "command": "LEGACY", "steps": []},
+                    {"name": "Broken", "command": "!", "steps": []},
+                ],
+            }
+            (Path(directory) / "config.json").write_text(json.dumps(raw), encoding="utf-8")
+            store = ConfigStore()
+            self.assertTrue(store.recovery_status["config_recovered"])
+            self.assertEqual([item.command for item in store.automations()], ["LEGACY"])
+            self.assertTrue(store.automations()[0].command_enabled)
+
+    def test_command_handler_exposes_ucapi_websocket_parameter(self):
+        import inspect
+        signature = inspect.signature(IntegrationController.command_handler)
+        self.assertIn("websocket", signature.parameters)
+        self.assertEqual(signature.parameters["websocket"].kind, inspect.Parameter.KEYWORD_ONLY)
 
 
 class RuntimeEnvironmentTests(unittest.TestCase):
@@ -137,8 +181,11 @@ class PackagingContractTests(unittest.TestCase):
         workflow = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
         self.assertIn("bash ./tools/build_remote.sh aarch64", workflow)
         self.assertIn('bash ./tools/verify_remote_archive.sh "$ARCHIVE"', workflow)
-        self.assertIn("Build and smoke-test external container", workflow)
+        self.assertIn("Build and smoke-test external container with installer contract", workflow)
         self.assertIn("/api/health", workflow)
+        self.assertIn("UC_CONFIG_HOME=/config", workflow)
+        self.assertIn("--network host", workflow)
+        self.assertIn("config.invalid-*.json", workflow)
         self.assertIn("container-image:", workflow)
         self.assertIn("packages: write", workflow)
         self.assertIn("docker/login-action@v4", workflow)
