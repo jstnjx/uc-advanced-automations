@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "core_url": "ws://remote.local/ws",
+    "api_key": "",
+    "web_host": "0.0.0.0",
+    "web_port": 8099,
+    "timezone": "Europe/Berlin",
+    "request_timeout_seconds": 10
+  },
+  "automations": [
+    {
+      "id": "movie-night",
+      "name": "Movie Night",
+      "command": "MOVIE_NIGHT",
+      "description": "Turns on the system and chooses the correct source.",
+      "enabled": true,
+      "mode": "single",
+      "steps": [
+        {
+          "type": "command",
+          "entity_id": "switch.living_room_power",
+          "cmd_id": "on",
+          "params": {}
+        },
+        {
+          "type": "delay",
+          "milliseconds": 1500
+        },
+        {
+          "type": "condition",
+          "mode": "all",
+          "conditions": [
+            {
+              "kind": "entity",
+              "entity_id": "media_player.tv",
+              "attribute": "state",
+              "operator": "ne",
+              "value": "ON"
+            }
+          ],
+          "then": [
+            {
+              "type": "command",
+              "entity_id": "media_player.tv",
+              "cmd_id": "on",
+              "params": {}
+            }
+          ],
+          "else": []
+        }
+      ]
+    }
+  ]
+}

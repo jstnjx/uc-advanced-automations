@@ -1,0 +1,39 @@
+{
+  "driver_id": "advanced_automations",
+  "version": "0.2.0",
+  "min_core_api": "0.20.0",
+  "name": {
+    "en": "Advanced Automations"
+  },
+  "icon": "custom:advanced-automations.png",
+  "description": {
+    "en": "Create and run conditional sequences, nested if/else branches, wait conditions, delays, HTTP requests, and cross-integration entity commands. Runs directly on Remote Two/3 or as an external integration with the same web interface and configuration format."
+  },
+  "port": 9090,
+  "developer": {
+    "name": "jstnjx",
+    "url": "https://github.com/jstnjx"
+  },
+  "home_page": "https://github.com/jstnjx/uc-advanced-automations",
+  "setup_data_schema": {
+    "title": {
+      "en": "Advanced Automations setup"
+    },
+    "settings": [
+      {
+        "id": "info",
+        "label": {
+          "en": "Setup"
+        },
+        "field": {
+          "label": {
+            "value": {
+              "en": "Advanced Automations can run directly on this Remote or as an external service. After setup, open the web interface on port 8099 of the device running the integration. For a Remote installation use http://REMOTE-IP:8099; for an external installation use http://SERVER-IP:8099. Configure a Remote Core API key, then create automations."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "release_date": "2026-07-30"
+}

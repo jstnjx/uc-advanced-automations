@@ -1,0 +1,228 @@
+Metadata-Version: 2.4
+Name: uc-advanced-automations
+Version: 0.1.0
+Summary: Advanced conditional automations for Unfolded Circle Remote Two and Remote 3
+Author: jstnjx
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: ucapi==0.7.0
+Requires-Dist: aiohttp<4,>=3.10
+Requires-Dist: websockets<17,>=14
+Requires-Dist: pydantic<3,>=2.10
+Dynamic: license-file
+
+# Unfolded Circle Advanced Automations
+
+A standalone external integration for **Unfolded Circle Remote Two and Remote 3**. It exposes one virtual **Advanced Automations** remote entity and provides a deliberately simple local web interface for building more capable automations.
+
+## What it supports
+
+- Sequential device commands across configured Unfolded Circle entities
+- Delays
+- Nested **if / else** branches
+- **All / any** condition groups
+- Entity attribute comparisons
+- Time-window conditions, including windows crossing midnight
+- **Wait until** with timeout and polling interval
+- HTTP requests for local webhooks and APIs
+- Per-step **continue on error**
+- Single-run or parallel execution mode
+- Run history with success, warning and error entries
+- Atomic JSON persistence with file mode `0600`
+- Touchscreen buttons and simple commands on the Remote
+
+No arbitrary Python, JavaScript or template expressions are evaluated. Conditions use a fixed set of operators.
+
+## Architecture
+
+The integration uses two Unfolded Circle APIs:
+
+1. **Integration API:** exposes the virtual `Advanced Automations` remote entity to Remote Two/3.
+2. **Remote Core WebSocket API:** reads configured entity attributes and dispatches commands to entities from other integrations.
+
+The two listeners are separate:
+
+| Service | Default port | Purpose |
+|---|---:|---|
+| Integration API | `9090` | Connection from Remote Two/3 |
+| Web interface | `8099` | Local automation editor |
+
+## Quick start with Docker Compose
+
+Docker host networking is used because it gives mDNS discovery and LAN access the least surprising behavior.
+
+```bash
+unzip uc-advanced-automations.zip
+cd uc-advanced-automations
+docker compose up -d --build
+```
+
+Open:
+
+```text
+http://SERVER-IP:8099
+```
+
+Then:
+
+1. Open **Settings**.
+2. Enter the Remote Core URL, normally `ws://REMOTE-IP/ws`.
+3. Enter a Core API key.
+4. Select **Test connection**.
+5. Create an automation and save it.
+6. Add the discovered **Advanced Automations** integration in the Unfolded Circle web configurator.
+7. Add its remote entity to a profile or activity.
+
+After adding, removing or renaming automation commands, refresh the integration entity in the web configurator so its command list and generated touchscreen pages are reloaded.
+
+## Native installation
+
+Requires Python 3.11 or newer.
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install .
+export UC_AUTOMATIONS_DATA_DIR="$PWD/data"
+uc-advanced-automations
+```
+
+The included systemd unit assumes:
+
+- application: `/opt/uc-advanced-automations`
+- virtual environment: `/opt/uc-advanced-automations/.venv`
+- service account: `uc-automations`
+- data directory: `/var/lib/uc-advanced-automations`
+
+## Creating a Core API key
+
+The Remote Core API requires authentication. Create an API key through the Remote's API access configuration or the Core REST API `auth/api_keys` endpoint, then paste it into the integration's Settings dialog.
+
+The key is stored in the local `config.json` file. The file is written with owner-only permissions, but it is not encrypted. Do not expose the web interface directly to the internet. Put authentication and TLS in front of it when access outside the trusted LAN is required.
+
+## Step types
+
+### Device command
+
+Select any configured entity and enter its command ID. Command parameters are optional JSON.
+
+Example:
+
+```json
+{
+  "type": "command",
+  "entity_id": "media_player.living_room_tv",
+  "cmd_id": "select_source",
+  "params": {
+    "source": "HDMI 1"
+  }
+}
+```
+
+Command IDs and parameters depend on the entity type and integration.
+
+### Condition
+
+Conditions read the latest entity object from the Remote Core API. Attribute paths use dot notation, for example `state`, `volume`, or `media.title`.
+
+Supported operators:
+
+```text
+eq, ne, gt, gte, lt, lte,
+contains, not_contains, in, not_in,
+exists, not_exists, truthy, falsy
+```
+
+A condition step has nested `then` and `else` sequences.
+
+### Wait until
+
+Repeatedly evaluates a condition group until it matches or its timeout expires.
+
+### HTTP request
+
+Useful for Home Assistant webhooks, Tasmota HTTP commands, Node-RED endpoints and other local services. Accepted response codes are configurable.
+
+## Example: conditional power-on
+
+```json
+{
+  "id": "movie-night",
+  "name": "Movie Night",
+  "command": "MOVIE_NIGHT",
+  "description": "Power on only what is currently off.",
+  "enabled": true,
+  "mode": "single",
+  "steps": [
+    {
+      "type": "condition",
+      "mode": "all",
+      "conditions": [
+        {
+          "kind": "entity",
+          "entity_id": "media_player.tv",
+          "attribute": "state",
+          "operator": "ne",
+          "value": "ON"
+        }
+      ],
+      "then": [
+        {
+          "type": "command",
+          "entity_id": "media_player.tv",
+          "cmd_id": "on",
+          "params": {}
+        },
+        {
+          "type": "wait",
+          "mode": "all",
+          "conditions": [
+            {
+              "kind": "entity",
+              "entity_id": "media_player.tv",
+              "attribute": "state",
+              "operator": "eq",
+              "value": "ON"
+            }
+          ],
+          "timeout_ms": 15000,
+          "interval_ms": 500
+        }
+      ],
+      "else": []
+    }
+  ]
+}
+```
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `UC_AUTOMATIONS_DATA_DIR` | `~/.config/uc-advanced-automations` | Persistent configuration directory |
+| `UC_INTEGRATION_INTERFACE` | all interfaces | Integration API bind address |
+| `UC_INTEGRATION_HTTP_PORT` | `9090` | Integration API port |
+| `UC_DISABLE_MDNS_PUBLISH` | `false` | Disable integration mDNS advertisement |
+
+The web bind address and port are stored under Settings. Changing either requires a restart.
+
+## Development checks
+
+```bash
+python -m compileall src tests
+PYTHONPATH=src python -m unittest discover -s tests -v
+node --check src/uc_advanced_automations/static/app.js
+```
+
+## Current limitations
+
+- Triggering is command-based. Automations run when invoked from the Remote or the web interface; background state-change triggers are not included in this first version.
+- The UI does not query command metadata yet. The command ID and optional parameters are entered manually.
+- Newly changed Remote command lists and generated touchscreen pages may require an entity refresh or integration reload in the web configurator.
+- The Core WebSocket API is still evolving, so future Remote firmware may require protocol adjustments.
+
+## License
+
+MIT

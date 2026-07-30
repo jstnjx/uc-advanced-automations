@@ -1,0 +1,25 @@
+[Unit]
+Description=Unfolded Circle Advanced Automations
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uc-automations
+Group=uc-automations
+WorkingDirectory=/opt/uc-advanced-automations
+Environment=UC_EXTERNAL=true
+Environment=UC_AUTOMATIONS_DATA_DIR=/var/lib/uc-advanced-automations
+Environment=UC_INTEGRATION_INTERFACE=0.0.0.0
+Environment=UC_INTEGRATION_HTTP_PORT=9090
+ExecStart=/opt/uc-advanced-automations/.venv/bin/uc-advanced-automations
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/uc-advanced-automations
+
+[Install]
+WantedBy=multi-user.target

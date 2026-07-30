@@ -1,0 +1,4 @@
+ucapi==0.7.0
+aiohttp<4,>=3.10
+websockets<17,>=14
+pydantic<3,>=2.10

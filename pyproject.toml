@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uc-advanced-automations"
+version = "0.2.0"
+description = "Advanced conditional automations for Unfolded Circle Remote Two and Remote 3"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "jstnjx" }]
+dependencies = [
+  "ucapi==0.7.0",
+  "aiohttp>=3.10,<4",
+  "websockets>=14,<17",
+  "pydantic>=2.10,<3",
+]
+
+[project.scripts]
+uc-advanced-automations = "uc_advanced_automations.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+uc_advanced_automations = ["static/*", "driver.json", "advanced-automations.png"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
