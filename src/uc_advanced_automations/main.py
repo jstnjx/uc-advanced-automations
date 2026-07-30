@@ -15,6 +15,7 @@ from .core_client import CoreClient
 from .engine import AutomationEngine
 from .integration import IntegrationController
 from .runtime import detect_runtime
+from .triggers import TriggerManager
 from .web import create_app
 
 _LOG = logging.getLogger(__name__)
@@ -28,8 +29,10 @@ async def run() -> None:
     api = ucapi.IntegrationAPI(loop)
     core = CoreClient(store.settings)
     engine = AutomationEngine(core, lambda: store.settings().timezone)
-    integration = IntegrationController(api, store, engine)
+    integration = IntegrationController(api, store, engine, core)
     integration.sync_entity()
+    triggers = TriggerManager(core, store, engine)
+    triggers.start()
 
     @api.listens_to(ucapi.Events.CONNECT)
     async def on_connect() -> None:
@@ -46,7 +49,7 @@ async def run() -> None:
     driver_path = files("uc_advanced_automations").joinpath("driver.json")
     await api.init(str(driver_path), setup_handler)
 
-    app = create_app(store, core, engine, integration, runtime)
+    app = create_app(store, core, engine, integration, triggers, runtime)
     runner = web.AppRunner(app, access_log=_LOG)
     await runner.setup()
     site = web.TCPSite(runner, settings.web_host, settings.web_port)
@@ -68,6 +71,7 @@ async def run() -> None:
     try:
         await stop_event.wait()
     finally:
+        await triggers.close()
         await engine.close()
         await core.close()
         await runner.cleanup()

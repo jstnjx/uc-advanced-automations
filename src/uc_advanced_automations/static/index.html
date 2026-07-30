@@ -17,6 +17,7 @@
       </div>
       <div class="top-actions">
         <span id="connectionBadge" class="status-badge"><span></span> Checking…</span>
+        <button id="refreshEntity" class="button secondary" type="button">Refresh Remote entity</button>
         <button id="settingsButton" class="button secondary" type="button">Settings</button>
       </div>
     </header>
@@ -39,7 +40,7 @@
         <div id="emptyState" class="empty-state">
           <div class="empty-icon">◇</div>
           <h2>Create an automation</h2>
-          <p>Build a sequence from commands, delays, conditions and wait steps.</p>
+          <p>Build command-driven or background state-change automations with conditional sequences.</p>
           <button id="emptyAdd" class="button primary" type="button">New automation</button>
         </div>
 
@@ -47,7 +48,7 @@
           <div class="editor-head">
             <div>
               <h2 id="editorTitle">Automation</h2>
-              <p>Each enabled automation appears as a command and touchscreen button on the Remote.</p>
+              <p>Run it from a Remote command, an entity state change, or both.</p>
             </div>
             <div class="editor-actions">
               <button id="deleteAutomation" class="button danger ghost" type="button">Delete</button>
@@ -77,12 +78,26 @@
               <span>Description</span>
               <input id="automationDescription" type="text" maxlength="240" placeholder="Optional description">
             </label>
-            <label class="switch-row wide">
+            <label class="switch-row">
               <input id="automationEnabled" type="checkbox" checked>
               <span class="switch"></span>
-              <span>Enabled and visible on the Remote</span>
+              <span>Automation enabled</span>
+            </label>
+            <label class="switch-row">
+              <input id="automationCommandEnabled" type="checkbox" checked>
+              <span class="switch"></span>
+              <span>Expose as Remote command and touchscreen button</span>
             </label>
           </div>
+
+          <div class="sequence-head trigger-head">
+            <div>
+              <h3>Background triggers</h3>
+              <p>Run when an entity attribute changes. Optional from/to values act as filters.</p>
+            </div>
+            <button id="addTrigger" class="button secondary" type="button">Add state trigger</button>
+          </div>
+          <div id="triggers" class="triggers"></div>
 
           <div class="sequence-head">
             <div>

@@ -48,10 +48,18 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             "${PYINSTALLER_IMAGE}" \
             bash -lc 'cd /workspace && python -m pip install -r requirements-build.txt && ./tools/build_remote.sh aarch64'
+      - name: Verify ARM64 archive and checksum
+        run: |
+          ARCHIVE="$(find . -maxdepth 1 -name 'uc-intg-advanced-automations-*-aarch64.tar.gz' -print -quit)"
+          test -n "$ARCHIVE"
+          ./tools/verify_remote_archive.sh "$ARCHIVE"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
       - uses: actions/upload-artifact@v7
         with:
-          name: remote-aarch64
-          path: uc-intg-advanced-automations-*-aarch64.tar.gz
+          name: remote-custom-install-aarch64
+          path: |
+            uc-intg-advanced-automations-*-aarch64.tar.gz
+            uc-intg-advanced-automations-*-aarch64.tar.gz.sha256
           if-no-files-found: error
 
   external-package:
@@ -66,7 +74,7 @@ jobs:
       - run: python -m build
       - uses: actions/upload-artifact@v7
         with:
-          name: external-python
+          name: external-python-not-for-remote
           path: dist/*
           if-no-files-found: error
 

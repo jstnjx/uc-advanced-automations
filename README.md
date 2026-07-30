@@ -10,6 +10,9 @@ It exposes one virtual **Advanced Automations** remote entity and provides a sim
 ## Features
 
 - Sequential commands across configured Unfolded Circle entities
+- Background entity state-change triggers with from/to filters
+- Trigger stabilization (debounce) and cooldown controls
+- Command IDs and typed parameters discovered from Core command metadata
 - Delays
 - Nested **if / else** branches
 - **All / any** condition groups
@@ -22,6 +25,7 @@ It exposes one virtual **Advanced Automations** remote entity and provides a sim
 - Run history
 - Atomic JSON persistence with file mode `0600`
 - Generated commands and touchscreen buttons on the Remote
+- Automatic entity definition refresh after command or page changes
 - One portable configuration format for embedded and external operation
 
 No arbitrary Python, JavaScript or template expressions are evaluated. Conditions use a fixed set of operators.
@@ -49,7 +53,7 @@ The integration uses two listeners:
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.2.0-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.0-aarch64.tar.gz
 ```
 
 Do not extract it.
@@ -84,7 +88,9 @@ python -m pip install -r requirements-build.txt
 make build-remote
 ```
 
-On x86-64, use the included GitHub Actions workflow or run the official ARM64 builder through QEMU/Docker.
+On x86-64, use the included GitHub Actions workflow. The build script refuses to create a Remote archive from an x86-64 runtime, and CI verifies that `bin/driver` is an ARM64 ELF executable before publishing it.
+
+The Python wheel produced by the external build is for server/native deployment. It is **not** a Remote custom-install package and cannot be uploaded through **Install custom**.
 
 ## External installation with Docker Compose
 
@@ -153,7 +159,26 @@ The key is stored in `config.json` with owner-only file permissions. It is not e
 }
 ```
 
-Command IDs and parameters depend on the selected entity and integration.
+The web editor queries the Remote Core command metadata for the selected entity. It presents only advertised commands and creates typed controls for number, boolean, enum, regex and entity-backed selection parameters. Manual JSON entry remains available as a fallback when an integration does not provide metadata.
+
+
+### Background state trigger
+
+An automation can be triggered by a Remote command, an entity transition, or both. A state trigger watches one attribute and optionally filters its previous and new values:
+
+```json
+{
+  "type": "entity_state",
+  "entity_id": "switch.living_room_power",
+  "attribute": "state",
+  "from_value": "OFF",
+  "to_value": "ON",
+  "debounce_ms": 500,
+  "cooldown_ms": 5000
+}
+```
+
+A blank `from_value` or `to_value` matches any value. `debounce_ms` requires the new value to remain stable before execution; `cooldown_ms` prevents repeated runs. The integration subscribes to Core entity-change events and reconnects automatically while enabled triggers exist.
 
 ### Condition
 
@@ -208,12 +233,11 @@ python -m pip install build
 python -m build
 ```
 
-## Limitations
+## Target-specific artifacts
 
-- Automations are command-triggered. Background state-change triggers are not included yet.
-- Command metadata is not queried yet; command IDs and parameters are entered manually.
-- Changing generated commands or touchscreen pages may require an entity refresh or integration reload.
-- A Remote custom-install archive must be built on ARM64 or through ARM64 emulation; an x86-64 wheel is not installable on the Remote.
+- Upload `uc-intg-advanced-automations-vX.Y.Z-aarch64.tar.gz` to Remote Two/3. It contains an ARM64 self-contained executable and the required custom-integration archive layout.
+- Use the wheel, source distribution, Docker image or systemd deployment only for external installations.
+- GitHub Actions builds both targets independently, validates the Remote archive architecture, and publishes SHA-256 checksums.
 
 ## License
 

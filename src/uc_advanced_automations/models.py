@@ -51,15 +51,39 @@ class Settings(BaseModel):
         return value
 
 
+class StateTrigger(BaseModel):
+    """Run an automation when one entity attribute changes."""
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    type: Literal["entity_state"] = "entity_state"
+    enabled: bool = True
+    entity_id: str = Field(min_length=1, max_length=160)
+    attribute: str = Field(default="state", min_length=1, max_length=160)
+    from_value: Any = None
+    to_value: Any = None
+    debounce_ms: int = Field(default=0, ge=0, le=86_400_000)
+    cooldown_ms: int = Field(default=0, ge=0, le=86_400_000)
+
+    @field_validator("entity_id", "attribute")
+    @classmethod
+    def strip_required(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value is required")
+        return value
+
+
 class Automation(BaseModel):
-    """One automation exposed as a simple command on the Remote."""
+    """One advanced automation with command and/or background triggers."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     name: str = Field(min_length=1, max_length=80)
     command: str = Field(min_length=2, max_length=64)
+    command_enabled: bool = True
     description: str = Field(default="", max_length=240)
     enabled: bool = True
     mode: Literal["single", "parallel"] = "single"
+    triggers: list[StateTrigger] = Field(default_factory=list)
     steps: list[dict[str, Any]] = Field(default_factory=list)
 
     @field_validator("command")
@@ -77,6 +101,13 @@ class Automation(BaseModel):
             validate_step(step, f"steps[{index}]")
         return value
 
+    @model_validator(mode="after")
+    def unique_trigger_ids(self) -> "Automation":
+        trigger_ids = [trigger.id for trigger in self.triggers]
+        if len(trigger_ids) != len(set(trigger_ids)):
+            raise ValueError("trigger ids must be unique within an automation")
+        return self
+
 
 class AppConfig(BaseModel):
     """Persisted application configuration."""
@@ -87,11 +118,11 @@ class AppConfig(BaseModel):
     @model_validator(mode="after")
     def unique_automation_fields(self) -> "AppConfig":
         ids = [item.id for item in self.automations]
-        commands = [item.command for item in self.automations]
+        commands = [item.command for item in self.automations if item.command_enabled]
         if len(ids) != len(set(ids)):
             raise ValueError("automation ids must be unique")
         if len(commands) != len(set(commands)):
-            raise ValueError("automation commands must be unique")
+            raise ValueError("enabled automation commands must be unique")
         return self
 
 

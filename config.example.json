@@ -12,14 +12,28 @@
       "id": "movie-night",
       "name": "Movie Night",
       "command": "MOVIE_NIGHT",
-      "description": "Turns on the system and chooses the correct source.",
+      "command_enabled": true,
+      "description": "Starts when selected on the Remote or when the TV changes from OFF to ON.",
       "enabled": true,
       "mode": "single",
+      "triggers": [
+        {
+          "id": "tv-on-trigger",
+          "type": "entity_state",
+          "enabled": true,
+          "entity_id": "media_player.tv",
+          "attribute": "state",
+          "from_value": "OFF",
+          "to_value": "ON",
+          "debounce_ms": 500,
+          "cooldown_ms": 5000
+        }
+      ],
       "steps": [
         {
           "type": "command",
           "entity_id": "switch.living_room_power",
-          "cmd_id": "on",
+          "cmd_id": "switch.on",
           "params": {}
         },
         {
@@ -27,26 +41,12 @@
           "milliseconds": 1500
         },
         {
-          "type": "condition",
-          "mode": "all",
-          "conditions": [
-            {
-              "kind": "entity",
-              "entity_id": "media_player.tv",
-              "attribute": "state",
-              "operator": "ne",
-              "value": "ON"
-            }
-          ],
-          "then": [
-            {
-              "type": "command",
-              "entity_id": "media_player.tv",
-              "cmd_id": "on",
-              "params": {}
-            }
-          ],
-          "else": []
+          "type": "command",
+          "entity_id": "media_player.tv",
+          "cmd_id": "media_player.select_source",
+          "params": {
+            "source": "HDMI 1"
+          }
         }
       ]
     }

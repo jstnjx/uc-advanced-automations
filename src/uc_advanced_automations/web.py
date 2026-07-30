@@ -12,10 +12,12 @@ from pydantic import ValidationError
 from .config_store import ConfigStore
 from .core_client import CoreApiError, CoreClient
 from .engine import AutomationEngine
-if TYPE_CHECKING:
-    from .integration import IntegrationController
 from .models import Automation, Settings
 from .runtime import RuntimeEnvironment
+from .triggers import TriggerManager
+
+if TYPE_CHECKING:
+    from .integration import IntegrationController
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -41,14 +43,18 @@ def create_app(
     core: CoreClient,
     engine: AutomationEngine,
     integration: "IntegrationController",
+    triggers: TriggerManager,
     runtime: RuntimeEnvironment,
 ) -> web.Application:
     app = web.Application(middlewares=[error_middleware], client_max_size=2 * 1024 * 1024)
-    app["store"] = store
-    app["core"] = core
-    app["engine"] = engine
-    app["integration"] = integration
-    app["runtime"] = runtime
+    app.update(
+        store=store,
+        core=core,
+        engine=engine,
+        integration=integration,
+        triggers=triggers,
+        runtime=runtime,
+    )
 
     app.router.add_get("/", index)
     app.router.add_get("/api/status", get_status)
@@ -56,6 +62,8 @@ def create_app(
     app.router.add_put("/api/settings", update_settings)
     app.router.add_post("/api/settings/test", test_connection)
     app.router.add_get("/api/entities", get_entities)
+    app.router.add_get("/api/entities/{entity_id}/commands", get_entity_commands)
+    app.router.add_post("/api/integration/refresh", refresh_integration_entity)
     app.router.add_get("/api/automations", get_automations)
     app.router.add_post("/api/automations", create_automation)
     app.router.add_put("/api/automations/{automation_id}", update_automation)
@@ -74,7 +82,9 @@ async def get_status(request: web.Request) -> web.Response:
     core: CoreClient = request.app["core"]
     engine: AutomationEngine = request.app["engine"]
     store: ConfigStore = request.app["store"]
+    triggers: TriggerManager = request.app["triggers"]
     runtime: RuntimeEnvironment = request.app["runtime"]
+    integration = request.app["integration"]
     return web.json_response(
         {
             "core_connected": core.is_connected,
@@ -82,6 +92,10 @@ async def get_status(request: web.Request) -> web.Response:
             "api_key_configured": bool(store.settings().api_key),
             "running": engine.running_count(),
             "automation_count": len(store.automations()),
+            "trigger_count": triggers.trigger_count,
+            "trigger_entities": triggers.tracked_entity_count,
+            "trigger_error": triggers.last_error,
+            "entity_refresh": integration.last_refresh,
             "runtime_mode": runtime.mode,
             "runtime_name": runtime.display_name,
             "runs_on_remote": runtime.runs_on_remote,
@@ -106,6 +120,7 @@ async def get_settings(request: web.Request) -> web.Response:
 async def update_settings(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
     core: CoreClient = request.app["core"]
+    triggers: TriggerManager = request.app["triggers"]
     body = await request.json()
     current = store.settings()
     if not body.get("api_key"):
@@ -113,12 +128,11 @@ async def update_settings(request: web.Request) -> web.Response:
     settings = Settings.model_validate(body)
     store.update_settings(settings)
     await core.close()
+    triggers.reload()
     response = settings.model_dump()
     response["api_key"] = ""
     response["api_key_configured"] = bool(settings.api_key)
-    response["restart_required"] = (
-        settings.web_host != current.web_host or settings.web_port != current.web_port
-    )
+    response["restart_required"] = settings.web_host != current.web_host or settings.web_port != current.web_port
     return web.json_response(response)
 
 
@@ -140,10 +154,21 @@ async def get_entities(request: web.Request) -> web.Response:
                 "integration_id": entity.get("integration_id"),
                 "features": entity.get("features", []),
                 "attributes": entity.get("attributes", {}),
+                "options": entity.get("options", {}),
             }
         )
     clean.sort(key=lambda item: (_display_name(item).lower(), str(item.get("entity_id", ""))))
     return web.json_response({"entities": clean})
+
+
+async def get_entity_commands(request: web.Request) -> web.Response:
+    core: CoreClient = request.app["core"]
+    return web.json_response(await core.get_command_definitions(request.match_info["entity_id"]))
+
+
+async def refresh_integration_entity(request: web.Request) -> web.Response:
+    result = await request.app["integration"].sync_and_refresh(force=True)
+    return web.json_response(result, status=200 if result.get("status") != "failed" else 503)
 
 
 async def get_automations(request: web.Request) -> web.Response:
@@ -154,25 +179,24 @@ async def get_automations(request: web.Request) -> web.Response:
 
 async def create_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
-    integration = request.app["integration"]
     automation = Automation.model_validate(await request.json())
 
     def mutate(config):
         config.automations.append(automation)
 
     store.mutate(mutate)
-    integration.sync_entity()
-    return web.json_response(automation.model_dump(mode="json"), status=201)
+    refresh = await _apply_runtime_changes(request)
+    response = web.json_response(automation.model_dump(mode="json"), status=201)
+    _set_refresh_headers(response, refresh)
+    return response
 
 
 async def update_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
-    integration = request.app["integration"]
     automation_id = request.match_info["automation_id"]
     body = await request.json()
     body["id"] = automation_id
     automation = Automation.model_validate(body)
-
     found = False
 
     def mutate(config):
@@ -186,13 +210,14 @@ async def update_automation(request: web.Request) -> web.Response:
     store.mutate(mutate)
     if not found:
         raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
-    integration.sync_entity()
-    return web.json_response(automation.model_dump(mode="json"))
+    refresh = await _apply_runtime_changes(request)
+    response = web.json_response(automation.model_dump(mode="json"))
+    _set_refresh_headers(response, refresh)
+    return response
 
 
 async def delete_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
-    integration = request.app["integration"]
     automation_id = request.match_info["automation_id"]
     before = len(store.automations())
 
@@ -202,8 +227,10 @@ async def delete_automation(request: web.Request) -> web.Response:
     store.mutate(mutate)
     if len(store.automations()) == before:
         raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
-    integration.sync_entity()
-    return web.Response(status=204)
+    refresh = await _apply_runtime_changes(request)
+    response = web.Response(status=204)
+    _set_refresh_headers(response, refresh)
+    return response
 
 
 async def run_automation(request: web.Request) -> web.Response:
@@ -214,9 +241,7 @@ async def run_automation(request: web.Request) -> web.Response:
         raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
     result = engine.start(automation, source="web interface")
     status = 202 if result.accepted else 409
-    return web.json_response(
-        {"accepted": result.accepted, "run_id": result.run_id, "reason": result.reason}, status=status
-    )
+    return web.json_response({"accepted": result.accepted, "run_id": result.run_id, "reason": result.reason}, status=status)
 
 
 async def get_logs(request: web.Request) -> web.Response:
@@ -226,6 +251,18 @@ async def get_logs(request: web.Request) -> web.Response:
     except ValueError:
         after = 0
     return web.json_response({"logs": engine.logs_after(after)})
+
+
+async def _apply_runtime_changes(request: web.Request) -> dict[str, Any]:
+    triggers: TriggerManager = request.app["triggers"]
+    triggers.reload()
+    return await request.app["integration"].sync_and_refresh()
+
+
+def _set_refresh_headers(response: web.StreamResponse, refresh: dict[str, Any]) -> None:
+    response.headers["X-UC-Entity-Refresh"] = str(refresh.get("status", "unknown"))
+    if refresh.get("message"):
+        response.headers["X-UC-Entity-Refresh-Message"] = str(refresh["message"])[:500]
 
 
 def _display_name(entity: dict[str, Any]) -> str:

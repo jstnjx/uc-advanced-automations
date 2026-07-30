@@ -1,4 +1,4 @@
-.PHONY: test build-wheel build-remote clean
+.PHONY: test build-wheel build-remote verify-remote clean
 
 test:
 	python -m compileall -q src tests driver.py
@@ -12,6 +12,10 @@ build-wheel:
 # PyInstaller container. The output is directly installable with Install custom.
 build-remote:
 	./tools/build_remote.sh aarch64
+
+verify-remote:
+	@test -n "$(ARCHIVE)" || (echo "Usage: make verify-remote ARCHIVE=uc-intg-...tar.gz" && exit 2)
+	./tools/verify_remote_archive.sh "$(ARCHIVE)"
 
 clean:
 	rm -rf build artifacts dist *.spec *.tar.gz

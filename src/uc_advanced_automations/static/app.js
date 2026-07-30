@@ -6,14 +6,16 @@ const state = {
   visibleLogs: [],
   settings: null,
   dirty: false,
+  commandDefinitions: new Map(),
 };
 
 const $ = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
+  const { returnResponse = false, ...fetchOptions } = options;
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...(fetchOptions.headers || {}) },
+    ...fetchOptions,
   });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
@@ -24,7 +26,8 @@ async function api(path, options = {}) {
     } catch (_) {}
     throw new Error(message);
   }
-  return response.status === 204 ? null : response.json();
+  const data = response.status === 204 ? null : await response.json();
+  return returnResponse ? { data, response } : data;
 }
 
 function selectedAutomation() {
@@ -58,7 +61,9 @@ function newAutomation() {
     command: `AUTOMATION_${number}`,
     description: "",
     enabled: true,
+    command_enabled: true,
     mode: "single",
+    triggers: [],
     steps: [],
     _new: true,
   };
@@ -103,7 +108,9 @@ function renderAutomationList() {
     dot.className = `dot${automation.enabled ? " enabled" : ""}`;
     top.append(name, dot);
     const command = document.createElement("small");
-    command.textContent = automation.command;
+    const triggerCount = (automation.triggers || []).filter((item) => item.enabled !== false).length;
+    const commandText = automation.command_enabled !== false ? automation.command : "Background only";
+    command.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}` : commandText;
     button.append(top, command);
     button.addEventListener("click", () => {
       state.selectedId = automation.id;
@@ -126,7 +133,10 @@ function renderEditor() {
   $("automationMode").value = automation.mode || "single";
   $("automationDescription").value = automation.description || "";
   $("automationEnabled").checked = automation.enabled !== false;
+  $("automationCommandEnabled").checked = automation.command_enabled !== false;
+  $("automationCommand").disabled = automation.command_enabled === false;
   $("saveAutomation").textContent = automation._new ? "Create automation" : "Save";
+  renderTriggers(automation);
   renderSteps($("steps"), automation.steps, "root");
 }
 
@@ -160,6 +170,81 @@ function bindEditorFields() {
     renderAutomationList();
     markDirty();
   });
+  $("automationCommandEnabled").addEventListener("change", (event) => {
+    selectedAutomation().command_enabled = event.target.checked;
+    $("automationCommand").disabled = !event.target.checked;
+    renderAutomationList();
+    markDirty();
+  });
+}
+
+function makeTrigger() {
+  return {
+    id: crypto.randomUUID(),
+    type: "entity_state",
+    enabled: true,
+    entity_id: state.entities[0]?.entity_id || "",
+    attribute: "state",
+    from_value: null,
+    to_value: null,
+    debounce_ms: 0,
+    cooldown_ms: 0,
+  };
+}
+
+function renderTriggers(automation) {
+  const container = $("triggers");
+  container.replaceChildren();
+  const triggers = automation.triggers || (automation.triggers = []);
+  if (!triggers.length) {
+    const empty = document.createElement("div");
+    empty.className = "steps-empty";
+    empty.textContent = "No background triggers. This automation runs only when invoked manually or from the Remote.";
+    container.append(empty);
+    return;
+  }
+  triggers.forEach((trigger, index) => container.append(renderTrigger(trigger, index, triggers)));
+}
+
+function renderTrigger(trigger, index, triggers) {
+  const card = document.createElement("article");
+  card.className = "trigger-card";
+  const head = document.createElement("div");
+  head.className = "trigger-card-head";
+  const title = document.createElement("strong");
+  title.textContent = `State-change trigger ${index + 1}`;
+  const remove = toolButton("×", "Delete trigger", () => {
+    triggers.splice(index, 1);
+    markDirty();
+    renderEditor();
+  });
+  head.append(title, remove);
+
+  const grid = document.createElement("div");
+  grid.className = "trigger-grid";
+  grid.append(
+    entityField("Entity", trigger.entity_id || "", (value) => { trigger.entity_id = value; }),
+    textField("Attribute", trigger.attribute || "state", (value) => { trigger.attribute = value; }, "state"),
+    textField("From value", trigger.from_value == null ? "" : valueToInput(trigger.from_value), (value) => {
+      trigger.from_value = value.trim() === "" ? null : parseLooseValue(value);
+    }, "Blank = any previous value"),
+    textField("To value", trigger.to_value == null ? "" : valueToInput(trigger.to_value), (value) => {
+      trigger.to_value = value.trim() === "" ? null : parseLooseValue(value);
+    }, "Blank = any new value"),
+    numberField("Stable for (ms)", trigger.debounce_ms ?? 0, (value) => { trigger.debounce_ms = value; }, 0, 86400000),
+    numberField("Cooldown (ms)", trigger.cooldown_ms ?? 0, (value) => { trigger.cooldown_ms = value; }, 0, 86400000),
+  );
+  const enabled = document.createElement("label");
+  enabled.className = "check-row";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = trigger.enabled !== false;
+  checkbox.addEventListener("change", () => { trigger.enabled = checkbox.checked; markDirty(); renderAutomationList(); });
+  const text = document.createElement("span");
+  text.textContent = "Trigger enabled";
+  enabled.append(checkbox, text);
+  card.append(head, grid, enabled);
+  return card;
 }
 
 function makeStep(type) {
@@ -289,11 +374,7 @@ function renderStepBody(step) {
   grid.className = "step-grid";
 
   if (step.type === "command") {
-    grid.append(
-      entityField("Entity", step.entity_id, (value) => { step.entity_id = value; }),
-      textField("Command ID", step.cmd_id, (value) => { step.cmd_id = value; }, "on, off, toggle, send_cmd…"),
-      jsonField("Parameters (JSON)", step.params || {}, (value) => { step.params = value; }, true),
-    );
+    grid.append(renderCommandStep(step));
   } else if (step.type === "delay") {
     grid.append(numberField("Milliseconds", step.milliseconds, (value) => { step.milliseconds = value; }, 0, 86400000));
   } else if (step.type === "condition") {
@@ -328,6 +409,200 @@ function renderStepBody(step) {
     );
   }
   return grid;
+}
+
+function localizedName(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") return value.en || Object.values(value)[0] || fallback;
+  return fallback;
+}
+
+async function loadCommandDefinitions(entityId) {
+  if (!entityId) return null;
+  if (state.commandDefinitions.has(entityId)) return state.commandDefinitions.get(entityId);
+  const pending = api(`/api/entities/${encodeURIComponent(entityId)}/commands`)
+    .then((data) => data)
+    .catch((error) => ({ error: error.message, entity: null, commands: [] }));
+  state.commandDefinitions.set(entityId, pending);
+  const resolved = await pending;
+  state.commandDefinitions.set(entityId, resolved);
+  return resolved;
+}
+
+function getCommandDefinitions(entityId) {
+  const value = state.commandDefinitions.get(entityId);
+  return value && typeof value.then !== "function" ? value : null;
+}
+
+function renderCommandStep(step) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "wide command-editor";
+  const grid = document.createElement("div");
+  grid.className = "step-grid";
+  grid.append(entityField("Entity", step.entity_id || "", (value) => {
+    step.entity_id = value;
+    step.cmd_id = "";
+    step.params = {};
+    loadCommandDefinitions(value).then(() => {
+      if (selectedAutomation()) renderEditor();
+    });
+  }));
+
+  const definitions = getCommandDefinitions(step.entity_id);
+  if (!definitions && step.entity_id) {
+    const loading = fieldWrap("Command");
+    const input = document.createElement("input");
+    input.disabled = true;
+    input.placeholder = "Loading command metadata…";
+    loading.append(input);
+    grid.append(loading);
+    loadCommandDefinitions(step.entity_id).then(() => {
+      if (selectedAutomation()) renderEditor();
+    });
+  } else if (definitions && definitions.commands?.length) {
+    const select = fieldWrap("Command");
+    const control = document.createElement("select");
+    if (step.cmd_id && !definitions.commands.some((item) => item.id === step.cmd_id)) {
+      const unknown = document.createElement("option");
+      unknown.value = step.cmd_id;
+      unknown.textContent = `${step.cmd_id} (not currently advertised)`;
+      control.append(unknown);
+    }
+    for (const command of definitions.commands) {
+      const option = document.createElement("option");
+      option.value = command.id;
+      option.textContent = `${localizedName(command.name, command.id)} · ${command.id}`;
+      control.append(option);
+    }
+    control.value = step.cmd_id || definitions.commands[0].id;
+    if (!step.cmd_id) {
+      step.cmd_id = control.value;
+      step.params = defaultsForCommand(definitions.commands[0]);
+    }
+    control.addEventListener("change", () => {
+      step.cmd_id = control.value;
+      const command = definitions.commands.find((item) => item.id === step.cmd_id);
+      step.params = defaultsForCommand(command);
+      markDirty();
+      renderEditor();
+    });
+    select.append(control);
+    grid.append(select);
+    const command = definitions.commands.find((item) => item.id === step.cmd_id);
+    grid.append(renderCommandParameters(step, command, definitions.entity));
+  } else {
+    grid.append(
+      textField("Command ID", step.cmd_id || "", (value) => { step.cmd_id = value; }, "light.on, switch.toggle…"),
+      jsonField("Parameters (JSON)", step.params || {}, (value) => { step.params = value; }, true),
+    );
+    if (definitions?.error) {
+      const warning = document.createElement("p");
+      warning.className = "metadata-warning wide";
+      warning.textContent = `Command metadata unavailable: ${definitions.error}. Manual entry remains available.`;
+      grid.append(warning);
+    }
+  }
+  wrapper.append(grid);
+  return wrapper;
+}
+
+function defaultsForCommand(command) {
+  const params = {};
+  for (const definition of command?.params || []) {
+    if (definition.default !== undefined) params[definition.param] = definition.default;
+    else if (!definition.optional && definition.type === "bool") params[definition.param] = false;
+    else if (!definition.optional && Array.isArray(definition.values) && definition.values.length) params[definition.param] = definition.values[0];
+  }
+  return params;
+}
+
+function renderCommandParameters(step, command, entity) {
+  const holder = document.createElement("div");
+  holder.className = "wide parameter-grid";
+  const definitions = command?.params || [];
+  if (!definitions.length) {
+    const text = document.createElement("p");
+    text.className = "metadata-note";
+    text.textContent = "This command has no parameters.";
+    holder.append(text);
+    return holder;
+  }
+  step.params ||= {};
+  for (const definition of definitions) {
+    holder.append(commandParameterField(step, definition, entity));
+  }
+  const advanced = document.createElement("details");
+  advanced.className = "wide advanced-params";
+  const summary = document.createElement("summary");
+  summary.textContent = "Advanced JSON parameters";
+  advanced.append(summary, jsonField("Parameters", step.params, (value) => { step.params = value; }, true));
+  holder.append(advanced);
+  return holder;
+}
+
+function commandParameterField(step, definition, entity) {
+  const name = definition.param;
+  const labelText = localizedName(definition.name, name) + (definition.optional ? " (optional)" : "");
+  const label = fieldWrap(labelText);
+  let input;
+  let values = definition.values;
+  if (definition.type === "selection" && !Array.isArray(values)) {
+    const items = definition.items || {};
+    const source = entity?.[items.source] || {};
+    values = source?.[items.field] || [];
+  }
+  if (definition.type === "enum" || definition.type === "selection") {
+    input = document.createElement("select");
+    if (definition.optional) {
+      const unset = document.createElement("option");
+      unset.value = "";
+      unset.textContent = "Not set";
+      input.append(unset);
+    }
+    for (const value of values || []) {
+      const option = document.createElement("option");
+      option.value = String(value);
+      option.textContent = String(value);
+      input.append(option);
+    }
+    input.value = step.params[name] ?? definition.default ?? "";
+    input.addEventListener("change", () => setCommandParam(step, name, input.value === "" && definition.optional ? undefined : input.value));
+  } else if (definition.type === "bool") {
+    input = document.createElement("select");
+    if (definition.optional) input.append(new Option("Not set", ""));
+    input.append(new Option("True", "true"), new Option("False", "false"));
+    const current = step.params[name];
+    input.value = current === undefined ? "" : String(Boolean(current));
+    input.addEventListener("change", () => setCommandParam(step, name, input.value === "" ? undefined : input.value === "true"));
+  } else {
+    input = document.createElement("input");
+    input.type = definition.type === "number" ? "number" : "text";
+    if (definition.min !== undefined) input.min = definition.min;
+    if (definition.max !== undefined) input.max = definition.max;
+    if (definition.step !== undefined) input.step = definition.step;
+    if (definition.regex) input.pattern = definition.regex;
+    input.value = step.params[name] ?? definition.default ?? "";
+    input.placeholder = definition.optional ? "Not set" : "Required";
+    input.addEventListener("input", () => {
+      const raw = input.value;
+      const value = raw === "" && definition.optional ? undefined : definition.type === "number" ? Number(raw) : raw;
+      setCommandParam(step, name, value);
+    });
+  }
+  label.append(input);
+  if (definition.unit) {
+    const small = document.createElement("small");
+    small.textContent = `Unit: ${definition.unit}`;
+    label.append(small);
+  }
+  return label;
+}
+
+function setCommandParam(step, name, value) {
+  step.params ||= {};
+  if (value === undefined) delete step.params[name];
+  else step.params[name] = value;
+  markDirty();
 }
 
 function rangeFields(step) {
@@ -615,11 +890,42 @@ function cleanAutomation(automation) {
   return copy;
 }
 
+function refreshMessage(response, prefix) {
+  const status = response.headers.get("X-UC-Entity-Refresh") || "unknown";
+  const detail = response.headers.get("X-UC-Entity-Refresh-Message");
+  const labels = {
+    refreshed: "Remote commands and pages refreshed automatically.",
+    reloaded: "Integration reloaded and Remote entity refreshed automatically.",
+    current: "Remote entity is already current.",
+    unchanged: "Remote entity definition was unchanged.",
+    "not-configured": "Add the Advanced Automations entity to the Remote to expose its commands.",
+    "api-key-required": "Configure a Core API key to enable automatic entity refresh.",
+    "refresh-pending": "Integration reload requested; Core is still applying the new entity definition.",
+    failed: detail || "Automatic entity refresh failed.",
+  };
+  return `${prefix} ${labels[status] || detail || ""}`.trim();
+}
+
+async function refreshRemoteEntity() {
+  try {
+    const result = await api("/api/integration/refresh", { method: "POST", body: "{}" });
+    const message = result.message || ({
+      refreshed: "Remote commands and touchscreen pages refreshed.",
+      reloaded: "Integration connection reloaded and entity refreshed.",
+      current: "Remote entity is already current.",
+      "not-configured": "Add the Advanced Automations entity to the Remote first.",
+    }[result.status] || `Refresh status: ${result.status}`);
+    showNotice(message, result.status === "failed" ? "error" : "success", 7000);
+  } catch (error) {
+    showNotice(error.message, "error", 7000);
+  }
+}
+
 async function saveCurrent() {
   const automation = selectedAutomation();
   if (!automation) return;
   if (!automation.name.trim()) return showNotice("Name is required.", "error");
-  if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command)) {
+  if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command)) {
     return showNotice("Remote command must use A–Z, numbers and underscores.", "error");
   }
   if (document.querySelector('textarea[data-invalid="true"]')) {
@@ -629,15 +935,16 @@ async function saveCurrent() {
   try {
     const wasNew = automation._new;
     const payload = cleanAutomation(automation);
-    const saved = wasNew
-      ? await api("/api/automations", { method: "POST", body: JSON.stringify(payload) })
-      : await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "PUT", body: JSON.stringify(payload) });
+    const result = wasNew
+      ? await api("/api/automations", { method: "POST", body: JSON.stringify(payload), returnResponse: true })
+      : await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "PUT", body: JSON.stringify(payload), returnResponse: true });
+    const saved = result.data;
     const index = state.automations.findIndex((item) => item.id === automation.id);
     state.automations[index] = saved;
     state.selectedId = saved.id;
     state.dirty = false;
     renderAll();
-    showNotice("Automation saved. Refresh the entity in the Remote configurator after changing its command list.");
+    showNotice(refreshMessage(result.response, "Automation saved."));
   } catch (error) {
     showNotice(error.message, "error", 7000);
   }
@@ -648,12 +955,16 @@ async function deleteCurrent() {
   if (!automation) return;
   if (!confirm(`Delete “${automation.name}”?`)) return;
   try {
-    if (!automation._new) await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "DELETE" });
+    let response = null;
+    if (!automation._new) {
+      const result = await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "DELETE", returnResponse: true });
+      response = result.response;
+    }
     state.automations = state.automations.filter((item) => item.id !== automation.id);
     state.selectedId = state.automations[0]?.id || null;
     state.dirty = false;
     renderAll();
-    showNotice("Automation deleted.");
+    showNotice(response ? refreshMessage(response, "Automation deleted.") : "Automation deleted.");
   } catch (error) {
     showNotice(error.message, "error");
   }
@@ -687,6 +998,7 @@ async function loadEntities() {
   try {
     const data = await api("/api/entities");
     state.entities = data.entities;
+    state.commandDefinitions.clear();
     if (selectedAutomation()) renderEditor();
   } catch (error) {
     state.entities = [];
@@ -810,6 +1122,15 @@ function setupEvents() {
   $("saveSettings").addEventListener("click", saveSettings);
   $("testConnection").addEventListener("click", testConnection);
   $("clearLogView").addEventListener("click", () => { state.visibleLogs = []; renderLogs(); });
+  $("refreshEntity").addEventListener("click", refreshRemoteEntity);
+  $("addTrigger").addEventListener("click", () => {
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.triggers ||= [];
+    automation.triggers.push(makeTrigger());
+    markDirty();
+    renderEditor();
+  });
   $("addRootStep").addEventListener("click", () => {
     const automation = selectedAutomation();
     if (!automation) return;
