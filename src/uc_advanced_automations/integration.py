@@ -79,7 +79,7 @@ class IntegrationController:
                 return {
                     "status": "api-key-required",
                     "refreshed": False,
-                    "message": "Configure a Remote Core API key to refresh the entity automatically.",
+                    "message": "Run integration setup to create the Remote Core API key.",
                 }
             try:
                 configured = await self._find_core_entity()

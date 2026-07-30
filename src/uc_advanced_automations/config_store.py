@@ -92,7 +92,7 @@ class ConfigStore:
                 return self.snapshot()
 
     def _migrate_raw_reserved_web_port(self, raw: Any) -> bool:
-        """Normalize persisted pre-0.3.5 editor ports before strict validation."""
+        """Normalize persisted legacy editor ports before strict validation."""
 
         if not isinstance(raw, dict):
             return False

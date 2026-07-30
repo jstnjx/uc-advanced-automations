@@ -53,7 +53,7 @@ The integration uses two listeners:
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.3.5-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.6-aarch64.tar.gz
 ```
 
 Do not extract it.
@@ -63,8 +63,9 @@ Do not extract it.
 3. Select **Add new** → **Install custom**.
 4. Upload the `.tar.gz` archive.
 5. Open **Advanced Automations** and start setup.
-6. Open `http://REMOTE-IP:9201` in a browser.
-7. Configure a Core API key and create automations.
+6. Enter the Remote address and the current **Web Configurator PIN**.
+7. The integration creates and stores a persistent `admin` API key, then discards the PIN.
+8. Open `http://REMOTE-IP:9201` in a browser and create automations.
 
 In embedded mode, the integration connects back to the local Remote Core API through `ws://127.0.0.1/ws`. Configuration remains on the Remote in its integration-managed data directory.
 
@@ -128,12 +129,12 @@ http://SERVER-IP:9201
 
 Then:
 
-1. Open **Settings**.
-2. Enter the Remote Core URL, normally `ws://REMOTE-IP/ws`.
-3. Enter a Core API key.
-4. Select **Test connection**.
-5. Create an automation and save it.
-6. Add the discovered **Advanced Automations** integration in the Web Configurator.
+1. Add or register the **Advanced Automations** integration in the Web Configurator.
+2. Start the integration setup flow.
+3. Enter the Remote IP address or hostname and the current **Web Configurator PIN**.
+4. The integration authenticates as `web-configurator`, creates a persistent `admin` API key, stores it in its private configuration, and discards the PIN.
+5. Open the automation editor and select **Test connection**.
+6. Create an automation and save it.
 7. Add its remote entity to a profile or activity.
 
 Docker host networking is used for direct LAN access. Integration mDNS publishing is disabled by default in external mode because managed integrations are registered explicitly with the Remote.
@@ -172,9 +173,11 @@ The included systemd unit assumes:
 
 ## Core API authentication
 
-Both targets use the Remote Core API to read entity state and execute commands. Create an API key through the Remote's API access configuration or the Core REST API `auth/api_keys` endpoint, then enter it in **Settings**.
+Both targets use the Remote Core API to read entity state and execute commands. During the Integration-API setup flow, Advanced Automations asks for the Remote address and Web Configurator PIN. It sends a single authenticated request as `web-configurator` to `POST /api/auth/api_keys` with the key name `Advanced Automations` and the `admin` scope. The one-time `api_key` returned by the Remote is stored immediately; the PIN is never written to configuration or logs.
 
-The key is stored in `config.json` with owner-only file permissions. It is not encrypted. Do not expose port `9201` directly to the internet.
+Reconfiguring the same Remote can keep the existing key by leaving the PIN empty. Entering a PIN creates a replacement key. The Settings dialog retains a manual API-key field for recovery and advanced deployments.
+
+The API key is stored in `config.json` with owner-only file permissions. It is not encrypted. Do not expose port `9201` directly to the internet.
 
 ## Step types
 

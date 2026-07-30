@@ -18,6 +18,7 @@ from .engine import AutomationEngine
 from .integration import IntegrationController
 from .runtime import detect_runtime
 from .startup import initialize_integration_api, start_web_site
+from .setup_flow import RemoteApiSetupFlow
 from .triggers import TriggerManager
 from .web import create_app
 
@@ -31,7 +32,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.3.5: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v0.3.6: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,
@@ -79,9 +80,11 @@ async def run() -> None:
     async def on_disconnect() -> None:
         _LOG.info("Remote disconnected from integration")
 
-    async def setup_handler(_message: ucapi.SetupDriver) -> ucapi.SetupAction:
-        """Complete the informational setup flow shown by driver.json."""
-        return ucapi.SetupComplete()
+    setup_flow = RemoteApiSetupFlow(
+        store,
+        core,
+        on_settings_changed=triggers.reload,
+    )
 
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
 
@@ -108,7 +111,7 @@ async def run() -> None:
     # ucapi initialization is isolated from the web server lifecycle. In
     # particular, a zeroconf failure must not make the external container exit.
     integration_init_task = asyncio.create_task(
-        initialize_integration_api(api, driver_path, setup_handler, service_status),
+        initialize_integration_api(api, driver_path, setup_flow.handle, service_status),
         name="integration-api-init",
     )
 

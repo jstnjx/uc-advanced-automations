@@ -899,7 +899,7 @@ function refreshMessage(response, prefix) {
     current: "Remote entity is already current.",
     unchanged: "Remote entity definition was unchanged.",
     "not-configured": "Add the Advanced Automations entity to the Remote to expose its commands.",
-    "api-key-required": "Configure a Core API key to enable automatic entity refresh.",
+    "api-key-required": "Run integration setup to create the Remote Core API key.",
     "refresh-pending": "Integration reload requested; Core is still applying the new entity definition.",
     failed: detail || "Automatic entity refresh failed.",
   };
@@ -1010,7 +1010,7 @@ async function pollStatus() {
     const status = await api("/api/status");
     const badge = $("connectionBadge");
     badge.className = `status-badge ${status.core_connected ? "connected" : status.core_error ? "error" : ""}`;
-    badge.innerHTML = `<span></span>${status.core_connected ? `Connected · ${status.running} running` : status.api_key_configured ? "Not connected" : "API key required"}`;
+    badge.innerHTML = `<span></span>${status.core_connected ? `Connected · ${status.running} running` : status.api_key_configured ? "Not connected" : "Setup required"}`;
     $("runtimeTarget").textContent = `Running on: ${status.runtime_name}`;
   } catch (_) {}
 }
@@ -1061,7 +1061,7 @@ async function openSettings() {
       ? `Embedded mode · configuration is stored on the Remote · open this interface at http://REMOTE-IP:${state.settings.web_port}`
       : `External mode · configuration directory: ${state.settings.data_dir}`;
     $("apiKey").value = "";
-    $("apiKeyHint").textContent = state.settings.api_key_configured ? "A key is stored. Leave blank to keep it." : "No API key is configured.";
+    $("apiKeyHint").textContent = state.settings.api_key_configured ? "Created during integration setup. Leave blank to keep it." : "Run integration setup to create a persistent key, or paste one manually.";
     $("timezone").value = state.settings.timezone;
     $("requestTimeout").value = state.settings.request_timeout_seconds;
     $("webHost").value = state.settings.web_host;
