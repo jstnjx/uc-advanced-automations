@@ -11,6 +11,7 @@ on:
 env:
   PYTHON_VERSION: "3.11"
   PYINSTALLER_IMAGE: "docker.io/unfoldedcircle/r2-pyinstaller:3.11.13-0.6.0"
+  REGISTRY: ghcr.io
 
 jobs:
   test:
@@ -93,6 +94,53 @@ jobs:
             uc-intg-advanced-automations-*-aarch64.tar.gz.sha256
           if-no-files-found: error
 
+  container-image:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Resolve lowercase GHCR image name
+        id: image
+        shell: bash
+        run: echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - name: Build and push multi-architecture image
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   external-package:
     runs-on: ubuntu-24.04
     needs: test
@@ -112,7 +160,7 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-    needs: [remote-package, external-package]
+    needs: [remote-package, external-package, container-image]
     permissions:
       contents: write
     steps:

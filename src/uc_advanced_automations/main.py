@@ -31,7 +31,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.3.1: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v0.3.2: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,

@@ -139,6 +139,14 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn('bash ./tools/verify_remote_archive.sh "$ARCHIVE"', workflow)
         self.assertIn("Build and smoke-test external container", workflow)
         self.assertIn("/api/health", workflow)
+        self.assertIn("container-image:", workflow)
+        self.assertIn("packages: write", workflow)
+        self.assertIn("docker/login-action@v4", workflow)
+        self.assertIn("docker/metadata-action@v6", workflow)
+        self.assertIn("docker/build-push-action@v7", workflow)
+        self.assertIn("platforms: linux/amd64,linux/arm64", workflow)
+        self.assertIn("type=raw,value=latest", workflow)
+        self.assertIn("needs: [remote-package, external-package, container-image]", workflow)
 
     def test_external_image_has_stable_runtime_contract(self):
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")

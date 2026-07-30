@@ -53,7 +53,7 @@ The integration uses two listeners:
 Use the ARM64 release archive named similar to:
 
 ```text
-uc-intg-advanced-automations-v0.3.1-aarch64.tar.gz
+uc-intg-advanced-automations-v0.3.2-aarch64.tar.gz
 ```
 
 Do not extract it.
@@ -91,6 +91,26 @@ make build-remote
 On x86-64, use the included GitHub Actions workflow. The build script refuses to create a Remote archive from an x86-64 runtime, and CI verifies that `bin/driver` is an ARM64 ELF executable before publishing it.
 
 The Python wheel produced by the external build is for server/native deployment. It is **not** a Remote custom-install package and cannot be uploaded through **Install custom**.
+
+## Prebuilt GHCR image
+
+The workflow publishes a multi-architecture image for `linux/amd64` and `linux/arm64`:
+
+```text
+ghcr.io/jstnjx/uc-advanced-automations
+```
+
+Release tags publish version aliases and `latest`. Pushes to `main` publish the `main` and commit-SHA tags.
+
+```bash
+docker pull ghcr.io/jstnjx/uc-advanced-automations:latest
+docker run -d \
+  --name uc-advanced-automations \
+  --restart unless-stopped \
+  --network host \
+  -v "$PWD/data:/data" \
+  ghcr.io/jstnjx/uc-advanced-automations:latest
+```
 
 ## External installation with Docker Compose
 
