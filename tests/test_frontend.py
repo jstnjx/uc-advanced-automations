@@ -17,7 +17,6 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn("cryptoApi.getRandomValues(bytes)", source)
         self.assertIn("Math.floor(Math.random() * 256)", source)
 
-
     def test_streamlined_builder_and_modal_contract(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")
         html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
@@ -45,7 +44,6 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn("Require every condition to match", source)
         self.assertNotIn("AND — all conditions", source)
 
-
     def test_overview_entity_filters_and_manual_logs_contract(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")
         html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
@@ -53,6 +51,7 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn('id="editAutomation"', html)
         self.assertIn('id="automationTimeline"', html)
         self.assertIn('id="entityDropdownToggle"', html)
+        self.assertIn('class="entity-filter-details"', html)
         self.assertIn('id="entityTypeFilters"', html)
         self.assertIn('id="entityIntegrationFilters"', html)
         self.assertIn('id="refreshLogs"', html)
@@ -65,6 +64,10 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn('Deleting automation…', source)
         self.assertNotIn('A–Z, numbers and underscores', html)
         self.assertIn('`${labelText} - ${currentText}`', source)
+        self.assertNotIn("A read-only timeline of how this automation starts and what it does.", html)
+        self.assertNotIn("Entity references are included as mapping slots", html)
+        self.assertNotIn('class="selection-summary"', html)
+        self.assertNotIn('class="entity-selection-grid"', html)
 
     def test_wait_timeframe_after_trigger_contract(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")
@@ -81,24 +84,37 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertTrue(Path("advanced-automations.png").is_file())
         self.assertTrue(Path("src/uc_advanced_automations/static/favicon.png").is_file())
 
-    def test_local_material_symbols_weight_200(self) -> None:
+    def test_local_material_symbols_weight_200_svg_set(self) -> None:
         html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
         css = Path("src/uc_advanced_automations/static/styles.css").read_text(encoding="utf-8")
         source = APP_JS.read_text(encoding="utf-8")
-        font = Path("src/uc_advanced_automations/static/material-symbols-outlined.woff2")
-        self.assertTrue(font.is_file())
-        self.assertGreater(font.stat().st_size, 0)
-        self.assertIn('@font-face', css)
-        self.assertIn('font-family: "Material Symbols Outlined"', css)
-        self.assertIn('font-weight: 200', css)
-        self.assertIn('material-symbols-outlined.woff2', css)
-        self.assertIn('class="material-symbols-outlined dropdown-chevron"', html)
-        self.assertIn('chevron_right', html)
-        self.assertIn('function materialSymbol', source)
-        self.assertIn('materialSymbol("chevron_right", "automation-chevron")', source)
+        icon_dir = Path("src/uc_advanced_automations/static/icons")
+        required = {
+            "add.svg", "arrow_back.svg", "arrow_forward.svg", "close.svg", "code.svg",
+            "delete.svg", "devices.svg", "drag_indicator.svg", "edit.svg", "expand_more.svg",
+            "filter_list.svg", "play_arrow.svg", "refresh.svg", "save.svg", "search.svg",
+            "settings.svg", "share.svg", "timer.svg", "upload_file.svg",
+        }
+        self.assertTrue(required.issubset({path.name for path in icon_dir.glob("*.svg")}))
+        for name in required:
+            svg = (icon_dir / name).read_text(encoding="utf-8")
+            self.assertIn('viewBox="0 -960 960 960"', svg)
+            self.assertIn("<path", svg)
+        self.assertFalse(Path("src/uc_advanced_automations/static/material-symbols-outlined.woff2").exists())
+        self.assertNotIn("@font-face", css)
+        self.assertIn('--mi-url: url("/static/icons/add.svg?v=0.6.2")', css)
+        self.assertIn('class="mi mi-refresh"', html)
+        self.assertIn('class="mi mi-settings"', html)
+        self.assertIn('class="mi mi-filter_list"', html)
+        self.assertIn('function materialIcon', source)
+        self.assertIn('materialIcon("arrow_forward", "automation-chevron")', source)
+        self.assertIn('materialIcon("drag_indicator", "drag-handle")', source)
         combined = html + css + source
-        self.assertNotIn('fonts.googleapis.com', combined)
-        self.assertNotIn('fonts.gstatic.com', combined)
+        self.assertNotIn("material-symbols-outlined", combined)
+        self.assertNotIn("fonts.googleapis.com", combined)
+        self.assertNotIn("fonts.gstatic.com", combined)
+        self.assertNotRegex(html, r'\stitle="')
+        self.assertNotRegex(source, r"\.title\s*=")
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the frontend compatibility test")
     def test_uuid_helper_runs_without_web_crypto(self) -> None:

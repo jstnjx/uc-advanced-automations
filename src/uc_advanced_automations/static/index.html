@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Advanced Automations</title>
-  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.6.1">
-  <link rel="stylesheet" href="/static/styles.css?v=0.6.1">
+  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.6.2">
+  <link rel="stylesheet" href="/static/styles.css?v=0.6.2">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="brand-lockup">
-        <img src="/static/integration-icon.png?v=0.6.1" alt="" class="brand-icon">
+        <img src="/static/integration-icon.png?v=0.6.2" alt="" class="brand-icon">
         <h1>Advanced Automations</h1>
       </div>
       <div class="top-actions">
         <span id="connectionBadge" class="status-badge"><span></span> Checking…</span>
-        <button id="refreshEntity" class="button secondary" type="button">Refresh entities</button>
-        <button id="settingsButton" class="button secondary" type="button">Settings</button>
+        <button id="refreshEntity" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh entities</span></button>
+        <button id="settingsButton" class="button secondary button-with-icon" type="button"><span class="mi mi-settings" aria-hidden="true"></span><span>Settings</span></button>
       </div>
     </header>
 
@@ -31,19 +31,19 @@
             <h2>Automations</h2>
             <p id="automationCount">0 configured</p>
           </div>
-          <button id="addAutomation" class="icon-button" type="button" aria-label="Add automation">+</button>
+          <button id="addAutomation" class="icon-button" type="button" aria-label="Add automation"><span class="mi mi-add" aria-hidden="true"></span></button>
         </div>
         <div id="automationList" class="automation-list"></div>
       </aside>
 
       <section class="workspace panel">
         <div id="emptyState" class="empty-state">
-          <img class="empty-icon" src="/static/integration-icon.png?v=0.6.1" alt="">
+          <img class="empty-icon" src="/static/integration-icon.png?v=0.6.2" alt="">
           <h2>Create an automation</h2>
           <p>Combine entity triggers, conditions, commands and service calls</p>
           <div class="empty-actions">
-            <button id="emptyAdd" class="button primary" type="button">New automation</button>
-            <button id="emptyBlueprint" class="button secondary" type="button">Import blueprint</button>
+            <button id="emptyAdd" class="button primary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>New automation</span></button>
+            <button id="emptyBlueprint" class="button secondary button-with-icon" type="button"><span class="mi mi-upload_file" aria-hidden="true"></span><span>Import blueprint</span></button>
           </div>
         </div>
 
@@ -57,20 +57,17 @@
               <p id="overviewDescription">Automation overview</p>
             </div>
             <div class="editor-actions">
-              <button id="overviewBlueprint" class="button ghost" type="button">Blueprint</button>
-              <button id="overviewRawEditor" class="button ghost" type="button">Raw JSON</button>
-              <button id="overviewDelete" class="button danger ghost" type="button">Delete</button>
-              <button id="overviewRun" class="button secondary" type="button">Run</button>
-              <button id="editAutomation" class="button primary" type="button">Edit</button>
+              <button id="overviewBlueprint" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
+              <button id="overviewRawEditor" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
+              <button id="overviewDelete" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
+              <button id="overviewRun" class="button secondary button-with-icon" type="button"><span class="mi mi-play_arrow" aria-hidden="true"></span><span>Run</span></button>
+              <button id="editAutomation" class="button primary button-with-icon" type="button"><span class="mi mi-edit" aria-hidden="true"></span><span>Edit</span></button>
             </div>
           </div>
           <div id="overviewMetrics" class="overview-metrics"></div>
           <section class="overview-section">
             <div class="overview-section-head">
-              <div>
-                <h3>Automation flow</h3>
-                <p>A read-only timeline of how this automation starts and what it does.</p>
-              </div>
+              <h3>Automation flow</h3>
             </div>
             <div id="automationTimeline" class="automation-timeline"></div>
           </section>
@@ -80,15 +77,14 @@
           <div class="editor-head">
             <div>
               <h2 id="editorTitle">Automation</h2>
-              <p>Configure the automation in four guided steps.</p>
             </div>
             <div class="editor-actions">
-              <button id="overviewBackButton" class="button ghost button-with-icon" type="button"><span class="material-symbols-outlined icon-back" aria-hidden="true">chevron_right</span><span>Overview</span></button>
-              <button id="blueprintButton" class="button ghost" type="button">Blueprint</button>
-              <button id="rawEditorButton" class="button ghost" type="button">Raw JSON</button>
-              <button id="deleteAutomation" class="button danger ghost" type="button">Delete</button>
-              <button id="runAutomation" class="button secondary" type="button">Run</button>
-              <button id="saveAutomation" class="button primary" type="button">Save</button>
+              <button id="overviewBackButton" class="button ghost button-with-icon" type="button"><span class="mi mi-arrow_back" aria-hidden="true"></span><span>Overview</span></button>
+              <button id="blueprintButton" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
+              <button id="rawEditorButton" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
+              <button id="deleteAutomation" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
+              <button id="runAutomation" class="button secondary button-with-icon" type="button"><span class="mi mi-play_arrow" aria-hidden="true"></span><span>Run</span></button>
+              <button id="saveAutomation" class="button primary button-with-icon" type="button"><span class="mi mi-save" aria-hidden="true"></span><span id="saveAutomationLabel">Save</span></button>
             </div>
           </div>
 
@@ -103,7 +99,7 @@
             <div class="flow-panel-head">
               <div>
                 <h3>Automation details</h3>
-                <p>Set the name, description, controls and behavior for repeated runs.</p>
+                
               </div>
             </div>
             <div class="form-grid compact-grid">
@@ -141,38 +137,41 @@
           </section>
 
           <section class="flow-panel hidden" data-flow-panel="1">
-            <div class="flow-panel-head">
-              <div>
-                <h3>Choose entities</h3>
-                <p>Only selected entities are available in triggers, conditions and sequence steps.</p>
-              </div>
-              <div class="section-actions">
-                <button id="selectAllEntities" class="button ghost" type="button">Select filtered</button>
-                <button id="clearEntitySelection" class="button ghost" type="button">Clear unused</button>
-              </div>
+            <div class="flow-panel-head compact-head">
+              <h3>Choose entities</h3>
+              <strong id="selectedEntityCount" class="entity-selected-count">0 selected</strong>
             </div>
-            <div class="selection-summary"><strong id="selectedEntityCount">0 selected</strong><span>Sensors are read-only and remain available for triggers and conditions.</span></div>
             <div class="entity-picker">
               <button id="entityDropdownToggle" class="entity-dropdown-toggle" type="button" aria-expanded="false">
-                <span>Choose entities</span>
-                <strong id="entityDropdownSummary">Select entities…</strong>
-                <span class="material-symbols-outlined dropdown-chevron" aria-hidden="true">chevron_right</span>
+                <span class="mi mi-devices entity-picker-icon" aria-hidden="true"></span>
+                <span class="entity-dropdown-copy">
+                  <strong>Entities</strong>
+                  <small id="entityDropdownSummary">Select entities…</small>
+                </span>
+                <span class="mi mi-expand_more dropdown-chevron" aria-hidden="true"></span>
               </button>
               <div id="entityDropdownPanel" class="entity-dropdown-panel hidden">
-                <label class="field entity-search-field">
-                  <span>Search entities</span>
-                  <input id="entitySearch" type="search" placeholder="Search by name or identifier">
-                </label>
-                <div class="entity-filter-grid">
-                  <fieldset class="entity-filter-group">
-                    <legend>Entity type</legend>
-                    <div id="entityTypeFilters" class="entity-filter-options"></div>
-                  </fieldset>
-                  <fieldset class="entity-filter-group">
-                    <legend>Integration</legend>
-                    <div id="entityIntegrationFilters" class="entity-filter-options"></div>
-                  </fieldset>
+                <div class="entity-picker-toolbar">
+                  <label class="entity-search-field">
+                    <span class="mi mi-search" aria-hidden="true"></span>
+                    <input id="entitySearch" type="search" aria-label="Search entities" placeholder="Search entities">
+                  </label>
+                  <button id="selectAllEntities" class="button ghost button-with-icon" type="button"><span class="mi mi-select_all" aria-hidden="true"></span><span>Select shown</span></button>
+                  <button id="clearEntitySelection" class="button ghost button-with-icon" type="button"><span class="mi mi-deselect" aria-hidden="true"></span><span>Clear unused</span></button>
                 </div>
+                <details class="entity-filter-details">
+                  <summary><span class="mi mi-filter_list" aria-hidden="true"></span><span>Filters</span></summary>
+                  <div class="entity-filter-grid">
+                    <fieldset class="entity-filter-group">
+                      <legend>Entity type</legend>
+                      <div id="entityTypeFilters" class="entity-filter-options"></div>
+                    </fieldset>
+                    <fieldset class="entity-filter-group">
+                      <legend>Integration</legend>
+                      <div id="entityIntegrationFilters" class="entity-filter-options"></div>
+                    </fieldset>
+                  </div>
+                </details>
                 <div id="automationEntities" class="entity-dropdown-options"></div>
               </div>
             </div>
@@ -182,9 +181,9 @@
             <div class="flow-panel-head trigger-head">
               <div>
                 <h3>Define triggers</h3>
-                <p>Triggers are optional when the automation is exposed as a Remote command.</p>
+                
               </div>
-              <button id="addTrigger" class="button secondary" type="button">Add trigger</button>
+              <button id="addTrigger" class="button secondary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Add trigger</span></button>
             </div>
             <div class="trigger-behavior-card">
               <label class="field">
@@ -203,17 +202,17 @@
             <div class="flow-panel-head">
               <div>
                 <h3>Define sequence</h3>
-                <p>Add actions, delays, conditions and service calls, then drag steps into the required order.</p>
+                
               </div>
-              <button id="addRootStep" class="button secondary" type="button">Add step</button>
+              <button id="addRootStep" class="button secondary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Add step</span></button>
             </div>
             <div id="steps" class="steps drop-zone"></div>
           </section>
 
           <div class="flow-navigation">
-            <button id="flowBack" class="button ghost button-with-icon" type="button"><span class="material-symbols-outlined icon-back" aria-hidden="true">chevron_right</span><span>Back</span></button>
+            <button id="flowBack" class="button ghost button-with-icon" type="button"><span class="mi mi-arrow_back" aria-hidden="true"></span><span>Back</span></button>
             <span class="spacer"></span>
-            <button id="flowNext" class="button primary button-with-icon" type="button"><span>Continue</span><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
+            <button id="flowNext" class="button primary button-with-icon" type="button"><span id="flowNextLabel">Continue</span><span class="mi mi-arrow_forward" aria-hidden="true"></span></button>
           </div>
         </div>
       </section>
@@ -223,7 +222,7 @@
       <div class="logs-head">
         <div>
           <h2>Run log</h2>
-          <p>Latest automation activity</p>
+          
         </div>
         <div class="log-actions">
           <label class="switch-row compact-switch">
@@ -231,8 +230,8 @@
             <span class="switch"></span>
             <span>Continuous refresh</span>
           </label>
-          <button id="refreshLogs" class="button secondary" type="button">Refresh</button>
-          <button id="clearLogView" class="button ghost" type="button">Clear view</button>
+          <button id="refreshLogs" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh</span></button>
+          <button id="clearLogView" class="button ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Clear view</span></button>
         </div>
       </div>
       <div id="logs" class="logs"><div class="log-empty">No runs yet.</div></div>
@@ -246,7 +245,7 @@
           <h2>Remote connection settings</h2>
           <p>The API key is normally created by the integration setup flow.</p>
         </div>
-        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        <button class="icon-button" value="cancel" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
       </div>
       <label class="field">
         <span>Remote WebSocket URL</span>
@@ -277,10 +276,10 @@
       </div>
       <div id="settingsResult" class="inline-result hidden"></div>
       <div class="dialog-actions">
-        <button id="testConnection" class="button secondary" type="button">Test connection</button>
+        <button id="testConnection" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Test connection</span></button>
         <span class="spacer"></span>
         <button class="button ghost" value="cancel">Cancel</button>
-        <button id="saveSettings" class="button primary" type="button">Save settings</button>
+        <button id="saveSettings" class="button primary button-with-icon" type="button"><span class="mi mi-save" aria-hidden="true"></span><span>Save settings</span></button>
       </div>
     </form>
   </dialog>
@@ -292,7 +291,7 @@
           <h2 id="messageDialogTitle">Message</h2>
           <p id="messageDialogText"></p>
         </div>
-        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        <button class="icon-button" value="cancel" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
       </div>
       <ul id="messageDialogDetails" class="validation-list hidden"></ul>
       <div class="dialog-actions">
@@ -308,17 +307,17 @@
       <div class="dialog-head">
         <div>
           <h2>Add sequence step</h2>
-          <p>Select the action to insert into this sequence.</p>
+          
         </div>
-        <button id="closeStepDialog" class="icon-button" type="button" aria-label="Close">×</button>
+        <button id="closeStepDialog" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
       </div>
       <div class="step-picker" id="stepPicker">
-        <button type="button" data-step-type="command"><strong>Entity</strong><span>Control an entity</span></button>
-        <button type="button" data-step-type="delay"><strong>Delay</strong><span>Pause before the next step</span></button>
-        <button type="button" data-step-type="condition"><strong>If / else</strong><span>Branch when all or any conditions match</span></button>
-        <button type="button" data-step-type="wait"><strong>Wait until</strong><span>Wait for a condition or enforce a timeframe after the trigger</span></button>
-        <button type="button" data-step-type="http"><strong>HTTP request</strong><span>Call a local or remote endpoint</span></button>
-        <button type="button" data-step-type="log"><strong>Log message</strong><span>Add a diagnostic entry</span></button>
+        <button type="button" data-step-type="command"><span class="mi mi-devices step-choice-icon" aria-hidden="true"></span><strong>Entity</strong><span>Control an entity</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="delay"><span class="mi mi-timer step-choice-icon" aria-hidden="true"></span><strong>Delay</strong><span>Pause before the next step</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="condition"><span class="mi mi-alt_route step-choice-icon" aria-hidden="true"></span><strong>If / else</strong><span>Branch when conditions match</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="wait"><span class="mi mi-hourglass_empty step-choice-icon" aria-hidden="true"></span><strong>Wait until</strong><span>Wait for a condition or trigger timeframe</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="http"><span class="mi mi-http step-choice-icon" aria-hidden="true"></span><strong>HTTP request</strong><span>Call an endpoint</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="log"><span class="mi mi-description step-choice-icon" aria-hidden="true"></span><strong>Log message</strong><span>Add a log entry</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
       </div>
     </div>
   </dialog>
@@ -328,9 +327,9 @@
       <div class="dialog-head">
         <div>
           <h2>Raw automation JSON</h2>
-          <p>JSON mirrors the stored automation exactly and avoids YAML type ambiguity.</p>
+          
         </div>
-        <button id="closeRawEditor" class="icon-button" type="button" aria-label="Close">×</button>
+        <button id="closeRawEditor" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
       </div>
       <label class="field">
         <span>Automation JSON</span>
@@ -338,10 +337,10 @@
       </label>
       <div id="rawEditorResult" class="inline-result hidden"></div>
       <div class="dialog-actions">
-        <button id="formatRawJson" class="button ghost" type="button">Format JSON</button>
+        <button id="formatRawJson" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Format JSON</span></button>
         <span class="spacer"></span>
         <button id="cancelRawEditor" class="button ghost" type="button">Cancel</button>
-        <button id="applyRawEditor" class="button primary" type="button">Apply changes</button>
+        <button id="applyRawEditor" class="button primary button-with-icon" type="button"><span class="mi mi-check" aria-hidden="true"></span><span>Apply changes</span></button>
       </div>
     </div>
   </dialog>
@@ -351,41 +350,40 @@
       <div class="dialog-head">
         <div>
           <h2>Automation blueprints</h2>
-          <p>Export a reusable blueprint or import one shared by another installation.</p>
+          
         </div>
-        <button id="closeBlueprintDialog" class="icon-button" type="button" aria-label="Close">×</button>
+        <button id="closeBlueprintDialog" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
       </div>
       <div class="blueprint-tabs" role="tablist">
         <button id="blueprintExportTab" class="active" type="button">Export</button>
         <button id="blueprintImportTab" type="button">Import</button>
       </div>
       <section id="blueprintExportPanel" class="blueprint-panel">
-        <p>Entity references are included as mapping slots so the blueprint can be adapted to another Remote.</p>
         <label class="field">
           <span>Blueprint JSON</span>
           <textarea id="blueprintExportJson" class="code-editor" readonly></textarea>
         </label>
         <div class="dialog-actions">
-          <button id="copyBlueprint" class="button ghost" type="button">Copy</button>
+          <button id="copyBlueprint" class="button ghost button-with-icon" type="button"><span class="mi mi-content_copy" aria-hidden="true"></span><span>Copy</span></button>
           <span class="spacer"></span>
-          <button id="downloadBlueprint" class="button primary" type="button">Download blueprint</button>
+          <button id="downloadBlueprint" class="button primary button-with-icon" type="button"><span class="mi mi-download" aria-hidden="true"></span><span>Download blueprint</span></button>
         </div>
       </section>
       <section id="blueprintImportPanel" class="blueprint-panel hidden">
         <div class="import-source-row">
-          <label class="button secondary file-button">Choose blueprint file<input id="blueprintFile" type="file" accept="application/json,.json"></label>
+          <label class="button secondary file-button button-with-icon"><span class="mi mi-upload_file" aria-hidden="true"></span><span>Choose blueprint file</span><input id="blueprintFile" type="file" accept="application/json,.json"></label>
           <span>or paste blueprint JSON below</span>
         </div>
         <label class="field">
           <span>Blueprint JSON</span>
           <textarea id="blueprintImportJson" class="code-editor" spellcheck="false"></textarea>
         </label>
-        <button id="readBlueprint" class="button secondary" type="button">Review blueprint</button>
+        <button id="readBlueprint" class="button secondary button-with-icon" type="button"><span class="mi mi-visibility" aria-hidden="true"></span><span>Review blueprint</span></button>
         <div id="blueprintImportResult" class="inline-result hidden"></div>
         <div id="blueprintEntityMappings" class="blueprint-mappings hidden"></div>
         <div class="dialog-actions">
           <span class="spacer"></span>
-          <button id="createFromBlueprint" class="button primary hidden" type="button">Create automation</button>
+          <button id="createFromBlueprint" class="button primary hidden button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Create automation</span></button>
         </div>
       </section>
     </div>
@@ -395,6 +393,6 @@
     <div class="saving-card"><span class="loading-spinner"></span><strong id="savingOverlayText">Saving automation…</strong></div>
   </div>
 
-  <script src="/static/app.js?v=0.6.1" defer></script>
+  <script src="/static/app.js?v=0.6.2" defer></script>
 </body>
 </html>

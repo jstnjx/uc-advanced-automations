@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uc-advanced-automations"
-version = "0.6.1"
+version = "0.6.2"
 description = "Advanced conditional automations for Unfolded Circle Remote Two and Remote 3"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,7 +28,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-uc_advanced_automations = ["static/*", "driver.json", "advanced-automations.png"]
+uc_advanced_automations = ["static/*", "static/icons/*.svg", "driver.json", "advanced-automations.png", "THIRD_PARTY_NOTICES.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

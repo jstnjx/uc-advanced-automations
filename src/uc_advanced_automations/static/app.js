@@ -24,12 +24,17 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-function materialSymbol(name, className = "") {
+function materialIcon(name, className = "") {
   const icon = document.createElement("span");
-  icon.className = `material-symbols-outlined${className ? ` ${className}` : ""}`;
+  icon.className = `mi mi-${name}${className ? ` ${className}` : ""}`;
   icon.setAttribute("aria-hidden", "true");
-  icon.textContent = name;
   return icon;
+}
+
+function setButtonContent(button, iconName, text) {
+  const label = document.createElement("span");
+  label.textContent = text;
+  button.replaceChildren(materialIcon(iconName), label);
 }
 
 class ApiError extends Error {
@@ -86,8 +91,8 @@ function selectedAutomation() {
 
 function markDirty() {
   state.dirty = true;
-  const button = $("saveAutomation");
-  if (button) button.textContent = "Save changes";
+  const label = $("saveAutomationLabel");
+  if (label) label.textContent = "Save changes";
 }
 
 function showNotice(message, type = "success", timeout = 4500) {
@@ -307,7 +312,7 @@ function renderAutomationList() {
     const commandText = automation.command_enabled !== false ? automation.command : "Background only";
     const logic = triggerCount > 1 ? ` · ${automation.trigger_mode === "all" ? "all states" : "any trigger"}` : "";
     summary.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}${logic}` : commandText;
-    button.append(top, summary, materialSymbol("chevron_right", "automation-chevron"));
+    button.append(top, summary, materialIcon("arrow_forward", "automation-chevron"));
     button.addEventListener("click", () => selectAutomation(automation.id));
     list.append(button);
   }
@@ -355,7 +360,7 @@ function renderFlowState() {
     button.setAttribute("aria-current", buttonStep === step ? "step" : "false");
   });
   $("flowBack").disabled = step === 0;
-  $("flowNext").textContent = step === 3 ? "Review and save" : "Continue";
+  $("flowNextLabel").textContent = step === 3 ? "Review and save" : "Continue";
 }
 
 function setFlowStep(step) {
@@ -529,7 +534,7 @@ function renderEntitySelection() {
     const tags = [entity.entity_type || "entity", entityIntegration(entity)];
     if (isSensor(entity)) tags.push("read-only");
     if (inUse) tags.push("in use");
-    metadata.textContent = `${tags.join(" · ")} · ${entity.entity_id}`;
+    metadata.textContent = tags.join(" · ");
     content.append(name, metadata);
     label.append(input, content);
     container.append(label);
@@ -691,7 +696,7 @@ function renderEditor() {
   $("automationEnabled").checked = automation.enabled !== false;
   $("automationCommandEnabled").checked = automation.command_enabled !== false;
   $("automationCommand").disabled = automation.command_enabled === false;
-  $("saveAutomation").textContent = automation._new ? "Create automation" : state.dirty ? "Save changes" : "Save";
+  $("saveAutomationLabel").textContent = automation._new ? "Create automation" : state.dirty ? "Save changes" : "Save";
   renderFlowState();
   renderEntitySelection();
   renderTriggerModeHelp();
@@ -792,7 +797,7 @@ function renderTrigger(trigger, index, triggers) {
   const label = document.createElement("strong");
   label.textContent = `Trigger ${index + 1}`;
   title.append(handle, label);
-  const remove = toolButton("×", "Delete trigger", () => {
+  const remove = toolButton("delete", "Delete trigger", () => {
     triggers.splice(index, 1);
     markDirty();
     renderEditor();
@@ -881,7 +886,7 @@ function renderStep(step, index, siblings) {
   title.append(handle, number, label);
   const tools = document.createElement("div");
   tools.className = "step-tools";
-  tools.append(toolButton("×", "Delete step", () => {
+  tools.append(toolButton("delete", "Delete step", () => {
     siblings.splice(index, 1);
     markDirty();
     renderEditor();
@@ -897,10 +902,8 @@ function renderStep(step, index, siblings) {
 }
 
 function dragHandle() {
-  const handle = document.createElement("span");
-  handle.className = "drag-handle";
-  handle.textContent = "⋮⋮";
-  handle.title = "Drag to reorder";
+  const handle = materialIcon("drag_indicator", "drag-handle");
+  handle.setAttribute("aria-label", "Drag to reorder");
   handle.draggable = true;
   return handle;
 }
@@ -947,11 +950,10 @@ function stepLabel(type) {
   }[type] || type;
 }
 
-function toolButton(text, label, handler) {
+function toolButton(iconName, label, handler) {
   const button = document.createElement("button");
   button.type = "button";
-  button.textContent = text;
-  button.title = label;
+  button.append(materialIcon(iconName));
   button.setAttribute("aria-label", label);
   button.addEventListener("click", handler);
   return button;
@@ -1204,10 +1206,12 @@ function conditionGroup(group) {
     { value: "any", label: "Continue when any condition matches" },
   ], (value) => { group.mode = value; }));
   const addEntity = document.createElement("button");
-  addEntity.type = "button"; addEntity.className = "button ghost small"; addEntity.textContent = "+ Entity condition";
+  addEntity.type = "button"; addEntity.className = "button ghost small button-with-icon";
+  setButtonContent(addEntity, "add", "Entity condition");
   addEntity.addEventListener("click", () => { group.conditions.push(makeCondition("entity")); markDirty(); renderEditor(); });
   const addTime = document.createElement("button");
-  addTime.type = "button"; addTime.className = "button ghost small"; addTime.textContent = "+ Time condition";
+  addTime.type = "button"; addTime.className = "button ghost small button-with-icon";
+  setButtonContent(addTime, "add", "Time condition");
   addTime.addEventListener("click", () => { group.conditions.push(makeCondition("time")); markDirty(); renderEditor(); });
   toolbar.append(addEntity, addTime);
   wrapper.append(toolbar);
@@ -1245,9 +1249,9 @@ function conditionRow(condition, index, conditions) {
   }
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.className = "button danger ghost small";
-  remove.textContent = "×";
-  remove.title = "Remove condition";
+  remove.className = "button danger ghost small icon-only-button";
+  remove.append(materialIcon("delete"));
+  remove.setAttribute("aria-label", "Remove condition");
   remove.addEventListener("click", async () => {
     if (conditions.length <= 1) {
       await openMessageDialog({ title: "Condition required", message: "A condition group must contain at least one condition." });
@@ -1283,8 +1287,8 @@ function branchEditor(label, key, steps, parent) {
   title.textContent = label;
   const add = document.createElement("button");
   add.type = "button";
-  add.className = "button ghost small";
-  add.textContent = "Add step";
+  add.className = "button ghost small button-with-icon";
+  setButtonContent(add, "add", "Add step");
   add.addEventListener("click", () => openStepPicker(parent[key]));
   head.append(title, add);
   const container = document.createElement("div");
