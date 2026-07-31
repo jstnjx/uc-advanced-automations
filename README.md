@@ -271,14 +271,14 @@ bash ./tools/build_remote.sh aarch64
 The generated package follows this naming pattern:
 
 ```text
-uc-intg-advanced-automations-v1.0.0-aarch64.tar.gz
+uc-intg-advanced-automations-v1.0.2-aarch64.tar.gz
 ```
 
 Verify it before installation:
 
 ```bash
 bash ./tools/verify_remote_archive.sh \
-  ./uc-intg-advanced-automations-v1.0.0-aarch64.tar.gz
+  ./uc-intg-advanced-automations-v1.0.2-aarch64.tar.gz
 ```
 
 > [!NOTE]
@@ -602,7 +602,7 @@ The frontend assets are versioned, but an older browser cache or reverse proxy m
 
 ### An automation was deleted or changed accidentally
 
-Open the revision history or deleted-automation archive. v1.0.0 retains up to 50 revisions per automation and supports restoration of deleted automations with their original identifier.
+Open the revision history or deleted-automation archive. v1.0.2 retains up to 50 revisions per automation and supports restoration of deleted automations with their original identifier.
 
 ## Development
 
