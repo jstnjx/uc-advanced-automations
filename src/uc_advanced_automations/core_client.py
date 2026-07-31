@@ -38,6 +38,7 @@ class CoreClient:
         self._last_error: str | None = None
         self._event_listeners: dict[str, list[EventCallback]] = {}
         self._command_metadata: list[dict[str, Any]] | None = None
+        self._ever_connected = False
 
     @property
     def is_connected(self) -> bool:
@@ -94,6 +95,9 @@ class CoreClient:
             try:
                 # The `entities` channel covers entity and activity-group events.
                 await self._request_connected("subscribe_events", {"channels": ["entities"]})
+                first_connection = not self._ever_connected
+                self._ever_connected = True
+                await self._dispatch_event("connection", {"event": "connected", "first_connection": first_connection})
             except Exception:
                 await self.close()
                 raise
@@ -306,9 +310,12 @@ class CoreClient:
             self._last_error = str(err)
             _LOG.warning("Core API receiver stopped: %s", err)
         finally:
+            was_connected = self._connected.is_set()
             self._connected.clear()
             self._ws = None
             self._fail_pending(CoreApiError("Core API connection stopped", 503))
+            if was_connected:
+                await self._dispatch_event("connection", {"event": "disconnected", "first_connection": False})
 
     async def _dispatch_event(self, message: str, data: dict[str, Any]) -> None:
         _LOG.debug("Core event: %s", message)

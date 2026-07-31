@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from .config_store import ConfigStore
 from .core_client import CoreApiError, CoreClient
+from .database import AutomationDatabase
 from .engine import AutomationEngine
 from .models import Automation, Settings
 from .runtime import RuntimeEnvironment
@@ -64,6 +65,7 @@ def create_app(
     integration: "IntegrationController",
     triggers: TriggerManager,
     runtime: RuntimeEnvironment,
+    database: AutomationDatabase,
     service_status: dict[str, Any] | None = None,
 ) -> web.Application:
     app = web.Application(middlewares=[error_middleware], client_max_size=2 * 1024 * 1024)
@@ -74,6 +76,7 @@ def create_app(
         integration=integration,
         triggers=triggers,
         runtime=runtime,
+        database=database,
         service_status=service_status if service_status is not None else {},
     )
 
@@ -91,6 +94,14 @@ def create_app(
     app.router.add_put("/api/automations/{automation_id}", update_automation)
     app.router.add_delete("/api/automations/{automation_id}", delete_automation)
     app.router.add_post("/api/automations/{automation_id}/run", run_automation)
+    app.router.add_get("/api/automations/{automation_id}/history", get_automation_history)
+    app.router.add_get("/api/automations/{automation_id}/revisions", get_revisions)
+    app.router.add_post("/api/automations/{automation_id}/revisions/{revision_id}/restore", restore_revision)
+    app.router.add_get("/api/revisions/deleted", get_deleted_revisions)
+    app.router.add_get("/api/revisions/{revision_id}", get_revision)
+    app.router.add_post("/api/revisions/{revision_id}/restore-deleted", restore_deleted_revision)
+    app.router.add_post("/api/triggers/{trigger_id}/run", run_manual_trigger)
+    app.router.add_post("/api/webhooks/{webhook_id}", run_webhook)
     app.router.add_get("/api/logs", get_logs)
     app.router.add_static("/static/", STATIC_DIR, show_index=False)
     return app
@@ -218,8 +229,13 @@ async def refresh_integration_entity(request: web.Request) -> web.Response:
 
 
 async def get_automations(request: web.Request) -> web.Response:
+    automations = request.app["store"].automations()
+    database: AutomationDatabase = request.app["database"]
     return web.json_response(
-        {"automations": [item.model_dump(mode="json") for item in request.app["store"].automations()]}
+        {
+            "automations": [item.model_dump(mode="json") for item in automations],
+            "history": database.run_summaries([item.id for item in automations]),
+        }
     )
 
 
@@ -233,6 +249,9 @@ async def create_automation(request: web.Request) -> web.Response:
         config.automations.append(automation)
 
     store.mutate(mutate)
+    request.app["database"].record_revision(
+        automation.model_dump(mode="json"), source=_edit_source(request), action="create"
+    )
     refresh = await _apply_runtime_changes(request)
     response = web.json_response(automation.model_dump(mode="json"), status=201)
     _set_refresh_headers(response, refresh)
@@ -247,6 +266,12 @@ async def update_automation(request: web.Request) -> web.Response:
     automation = Automation.model_validate(body)
     _validate_automation_rules(automation)
     await _validate_command_targets(request, automation)
+    current = store.get_automation(automation_id)
+    if not current:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
+    request.app["database"].record_revision(
+        current.model_dump(mode="json"), source=_edit_source(request), action="update"
+    )
     found = False
 
     def mutate(config):
@@ -270,6 +295,12 @@ async def delete_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
     automation_id = request.match_info["automation_id"]
     before = len(store.automations())
+    current = store.get_automation(automation_id)
+    if not current:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
+    request.app["database"].record_revision(
+        current.model_dump(mode="json"), source=_edit_source(request), action="delete"
+    )
 
     def mutate(config):
         config.automations = [item for item in config.automations if item.id != automation_id]
@@ -294,6 +325,118 @@ async def run_automation(request: web.Request) -> web.Response:
     return web.json_response({"accepted": result.accepted, "run_id": result.run_id, "reason": result.reason}, status=status)
 
 
+async def get_automation_history(request: web.Request) -> web.Response:
+    automation_id = request.match_info["automation_id"]
+    if not request.app["store"].get_automation(automation_id):
+        raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
+    return web.json_response(request.app["database"].run_summary(automation_id, recent_limit=25))
+
+
+async def get_revisions(request: web.Request) -> web.Response:
+    return web.json_response({"revisions": request.app["database"].list_revisions(request.match_info["automation_id"])})
+
+
+def _revision_id(request: web.Request) -> int:
+    try:
+        return int(request.match_info["revision_id"])
+    except ValueError as err:
+        raise web.HTTPBadRequest(
+            text=json.dumps({"error": "Invalid revision id"}), content_type="application/json"
+        ) from err
+
+
+async def get_revision(request: web.Request) -> web.Response:
+    revision_id = _revision_id(request)
+    revision = request.app["database"].get_revision(revision_id)
+    if not revision:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Revision not found"}), content_type="application/json")
+    return web.json_response(revision)
+
+
+async def restore_revision(request: web.Request) -> web.Response:
+    store: ConfigStore = request.app["store"]
+    automation_id = request.match_info["automation_id"]
+    current = store.get_automation(automation_id)
+    if not current:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Automation not found"}), content_type="application/json")
+    revision_id = _revision_id(request)
+    revision = request.app["database"].get_revision(revision_id)
+    if not revision or revision["automation_id"] != automation_id:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Revision not found"}), content_type="application/json")
+    restored_payload = dict(revision["automation"])
+    restored_payload["id"] = automation_id
+    restored = Automation.model_validate(restored_payload)
+    _validate_automation_rules(restored)
+    await _validate_command_targets(request, restored)
+    request.app["database"].record_revision(
+        current.model_dump(mode="json"), source="rollback", action="restore"
+    )
+
+    def mutate(config):
+        for index, item in enumerate(config.automations):
+            if item.id == automation_id:
+                config.automations[index] = restored
+                return
+
+    store.mutate(mutate)
+    refresh = await _apply_runtime_changes(request)
+    response = web.json_response(restored.model_dump(mode="json"))
+    _set_refresh_headers(response, refresh)
+    return response
+
+
+async def get_deleted_revisions(request: web.Request) -> web.Response:
+    active_ids = [item.id for item in request.app["store"].automations()]
+    deleted = request.app["database"].list_deleted_automations(active_ids)
+    return web.json_response({"deleted": deleted})
+
+
+async def restore_deleted_revision(request: web.Request) -> web.Response:
+    store: ConfigStore = request.app["store"]
+    revision_id = _revision_id(request)
+    revision = request.app["database"].get_revision(revision_id)
+    if not revision or revision.get("action") != "delete":
+        raise web.HTTPNotFound(text=json.dumps({"error": "Deleted automation revision not found"}), content_type="application/json")
+    automation_id = str(revision["automation_id"])
+    if store.get_automation(automation_id):
+        raise web.HTTPConflict(text=json.dumps({"error": "An automation with this id already exists"}), content_type="application/json")
+    restored_payload = dict(revision["automation"])
+    restored_payload["id"] = automation_id
+    restored = Automation.model_validate(restored_payload)
+    _validate_automation_rules(restored)
+    await _validate_command_targets(request, restored)
+
+    def mutate(config):
+        config.automations.append(restored)
+
+    store.mutate(mutate)
+    request.app["database"].record_revision(
+        restored.model_dump(mode="json"), source="rollback", action="restore_deleted"
+    )
+    refresh = await _apply_runtime_changes(request)
+    response = web.json_response(restored.model_dump(mode="json"), status=201)
+    _set_refresh_headers(response, refresh)
+    return response
+
+
+async def run_manual_trigger(request: web.Request) -> web.Response:
+    run_id = request.app["triggers"].fire_manual(request.match_info["trigger_id"])
+    if not run_id:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Manual trigger not found or run rejected"}), content_type="application/json")
+    return web.json_response({"accepted": True, "run_id": run_id}, status=202)
+
+
+async def run_webhook(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json() if request.can_read_body else None
+    except json.JSONDecodeError:
+        payload = None
+    run_ids = await request.app["triggers"].fire_webhook(request.match_info["webhook_id"], payload)
+    if not run_ids:
+        raise web.HTTPNotFound(text=json.dumps({"error": "Webhook not found or run rejected"}), content_type="application/json")
+    return web.json_response({"accepted": True, "run_ids": run_ids}, status=202)
+
+
 async def get_logs(request: web.Request) -> web.Response:
     engine: AutomationEngine = request.app["engine"]
     try:
@@ -301,6 +444,11 @@ async def get_logs(request: web.Request) -> web.Response:
     except ValueError:
         after = 0
     return web.json_response({"logs": engine.logs_after(after)})
+
+
+def _edit_source(request: web.Request) -> str:
+    value = request.headers.get("X-Edit-Source", "visual_editor").strip().lower()
+    return value if value in {"visual_editor", "raw_editor", "blueprint_import", "rollback"} else "visual_editor"
 
 
 async def _apply_runtime_changes(request: web.Request) -> dict[str, Any]:
@@ -402,7 +550,12 @@ def _walk_command_steps(steps: list[dict[str, Any]], prefix: list[str] | None = 
         path = [*base, str(index)]
         if step.get("type") == "command":
             yield path, step
-        if step.get("type") == "condition":
-            yield from _walk_command_steps(step.get("then", []), [*path, "then"])
-            yield from _walk_command_steps(step.get("else", []), [*path, "else"])
+        for key in ("then", "else", "failure_steps", "match_steps", "timeout_steps"):
+            yield from _walk_command_steps(step.get(key, []), [*path, key])
+        if step.get("type") == "parallel":
+            for branch_index, branch in enumerate(step.get("branches", [])):
+                if isinstance(branch, dict):
+                    yield from _walk_command_steps(
+                        branch.get("steps", []), [*path, "branches", str(branch_index), "steps"]
+                    )
 

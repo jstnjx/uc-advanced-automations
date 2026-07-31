@@ -1,13 +1,13 @@
 {
   "driver_id": "advanced_automations",
-  "version": "0.6.2",
+  "version": "1.0.0",
   "min_core_api": "0.35.0",
   "name": {
     "en": "Advanced Automations"
   },
   "icon": "custom:advanced-automations.png",
   "description": {
-    "en": "Create advanced automations with entity triggers, attribute conditions, metadata-driven commands, visual sequences, nested branches, waits, delays, HTTP requests, reusable blueprints and raw JSON editing."
+    "en": "Build local automations."
   },
   "port": 9090,
   "developer": {

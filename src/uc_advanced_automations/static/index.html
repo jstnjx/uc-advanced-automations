@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Advanced Automations</title>
-  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.6.2">
-  <link rel="stylesheet" href="/static/styles.css?v=0.6.2">
+  <link rel="icon" type="image/png" href="/static/favicon.png?v=1.0.0">
+  <link rel="stylesheet" href="/static/styles.css?v=1.0.0">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="brand-lockup">
-        <img src="/static/integration-icon.png?v=0.6.2" alt="" class="brand-icon">
+        <img src="/static/integration-icon.png?v=1.0.0" alt="" class="brand-icon">
         <h1>Advanced Automations</h1>
       </div>
       <div class="top-actions">
@@ -31,14 +31,17 @@
             <h2>Automations</h2>
             <p id="automationCount">0 configured</p>
           </div>
-          <button id="addAutomation" class="icon-button" type="button" aria-label="Add automation"><span class="mi mi-add" aria-hidden="true"></span></button>
+          <div class="sidebar-head-actions">
+            <button id="deletedRevisionsButton" class="icon-button" type="button" aria-label="Deleted automations"><span class="mi mi-restore" aria-hidden="true"></span></button>
+            <button id="addAutomation" class="icon-button" type="button" aria-label="Add automation"><span class="mi mi-add" aria-hidden="true"></span></button>
+          </div>
         </div>
         <div id="automationList" class="automation-list"></div>
       </aside>
 
       <section class="workspace panel">
         <div id="emptyState" class="empty-state">
-          <img class="empty-icon" src="/static/integration-icon.png?v=0.6.2" alt="">
+          <img class="empty-icon" src="/static/integration-icon.png?v=1.0.0" alt="">
           <h2>Create an automation</h2>
           <p>Combine entity triggers, conditions, commands and service calls</p>
           <div class="empty-actions">
@@ -57,6 +60,7 @@
               <p id="overviewDescription">Automation overview</p>
             </div>
             <div class="editor-actions">
+              <button id="overviewRevisions" class="button ghost button-with-icon" type="button"><span class="mi mi-history" aria-hidden="true"></span><span>Revisions</span></button>
               <button id="overviewBlueprint" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
               <button id="overviewRawEditor" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
               <button id="overviewDelete" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
@@ -66,10 +70,12 @@
           </div>
           <div id="overviewMetrics" class="overview-metrics"></div>
           <section class="overview-section">
-            <div class="overview-section-head">
-              <h3>Automation flow</h3>
-            </div>
+            <div class="overview-section-head"><h3>Automation flow</h3></div>
             <div id="automationTimeline" class="automation-timeline"></div>
+          </section>
+          <section class="overview-section">
+            <div class="overview-section-head"><h3>Recent run history</h3><button id="refreshAutomationHistory" class="button ghost button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh</span></button></div>
+            <div id="recentRunHistory" class="recent-run-history"></div>
           </section>
         </div>
 
@@ -80,6 +86,9 @@
             </div>
             <div class="editor-actions">
               <button id="overviewBackButton" class="button ghost button-with-icon" type="button"><span class="mi mi-arrow_back" aria-hidden="true"></span><span>Overview</span></button>
+              <button id="undoEdit" class="icon-button" type="button" aria-label="Undo" disabled><span class="mi mi-undo" aria-hidden="true"></span></button>
+              <button id="redoEdit" class="icon-button" type="button" aria-label="Redo" disabled><span class="mi mi-redo" aria-hidden="true"></span></button>
+              <button id="revisionsButton" class="button ghost button-with-icon" type="button"><span class="mi mi-history" aria-hidden="true"></span><span>Revisions</span></button>
               <button id="blueprintButton" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
               <button id="rawEditorButton" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
               <button id="deleteAutomation" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
@@ -118,6 +127,10 @@
                   <option value="replace">Replace — stop the active run and start again</option>
                   <option value="parallel">Parallel — allow simultaneous runs</option>
                 </select>
+              </label>
+              <label class="field">
+                <span>Maximum runtime (ms)</span>
+                <input id="automationMaxRuntime" type="number" min="0" max="604800000" step="1000" placeholder="0 = unlimited">
               </label>
               <label class="field wide">
                 <span>Description</span>
@@ -207,6 +220,16 @@
               <button id="addRootStep" class="button secondary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Add step</span></button>
             </div>
             <div id="steps" class="steps drop-zone"></div>
+            <details class="recovery-flow">
+              <summary>Cancellation cleanup</summary>
+              <div class="branch-head"><strong>Runs when an active automation is cancelled or replaced</strong><button id="addCancellationStep" class="button ghost small button-with-icon" type="button"><span class="mi mi-add"></span><span>Add step</span></button></div>
+              <div id="cancellationSteps" class="steps drop-zone"></div>
+            </details>
+            <details class="recovery-flow">
+              <summary>Rollback sequence</summary>
+              <div class="branch-head"><strong>Runs after an unhandled failure</strong><button id="addRollbackStep" class="button ghost small button-with-icon" type="button"><span class="mi mi-add"></span><span>Add step</span></button></div>
+              <div id="rollbackSteps" class="steps drop-zone"></div>
+            </details>
           </section>
 
           <div class="flow-navigation">
@@ -315,7 +338,8 @@
         <button type="button" data-step-type="command"><span class="mi mi-devices step-choice-icon" aria-hidden="true"></span><strong>Entity</strong><span>Control an entity</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
         <button type="button" data-step-type="delay"><span class="mi mi-timer step-choice-icon" aria-hidden="true"></span><strong>Delay</strong><span>Pause before the next step</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
         <button type="button" data-step-type="condition"><span class="mi mi-alt_route step-choice-icon" aria-hidden="true"></span><strong>If / else</strong><span>Branch when conditions match</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="wait"><span class="mi mi-hourglass_empty step-choice-icon" aria-hidden="true"></span><strong>Wait until</strong><span>Wait for a condition or trigger timeframe</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="wait"><span class="mi mi-hourglass_empty step-choice-icon" aria-hidden="true"></span><strong>Wait for condition</strong><span>Choose explicit match and timeout outcomes</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="parallel"><span class="mi mi-account_tree step-choice-icon" aria-hidden="true"></span><strong>Parallel group</strong><span>Run multiple branches at the same time</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
         <button type="button" data-step-type="http"><span class="mi mi-http step-choice-icon" aria-hidden="true"></span><strong>HTTP request</strong><span>Call an endpoint</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
         <button type="button" data-step-type="log"><span class="mi mi-description step-choice-icon" aria-hidden="true"></span><strong>Log message</strong><span>Add a log entry</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
       </div>
@@ -337,6 +361,8 @@
       </label>
       <div id="rawEditorResult" class="inline-result hidden"></div>
       <div class="dialog-actions">
+        <button id="rawUndo" class="button ghost button-with-icon" type="button"><span class="mi mi-undo" aria-hidden="true"></span><span>Undo</span></button>
+        <button id="rawRedo" class="button ghost button-with-icon" type="button"><span class="mi mi-redo" aria-hidden="true"></span><span>Redo</span></button>
         <button id="formatRawJson" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Format JSON</span></button>
         <span class="spacer"></span>
         <button id="cancelRawEditor" class="button ghost" type="button">Cancel</button>
@@ -389,10 +415,41 @@
     </div>
   </dialog>
 
+  <dialog id="revisionsDialog" class="wide-dialog">
+    <div class="dialog-card">
+      <div class="dialog-head"><div><h2>Automation revisions</h2></div><button id="closeRevisions" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close"></span></button></div>
+      <div id="revisionList" class="revision-list"></div>
+      <div class="revision-compare-controls">
+        <label class="field"><span>Compare from</span><select id="revisionFrom"></select></label>
+        <label class="field"><span>Compare to</span><select id="revisionTo"></select></label>
+        <button id="compareRevisions" class="button secondary button-with-icon" type="button"><span class="mi mi-compare_arrows"></span><span>Compare</span></button>
+      </div>
+      <pre id="revisionDiff" class="revision-diff hidden"></pre>
+    </div>
+  </dialog>
+
+  <dialog id="deletedRevisionsDialog" class="wide-dialog">
+    <div class="dialog-card">
+      <div class="dialog-head"><div><h2>Deleted automations</h2></div><button id="closeDeletedRevisions" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close"></span></button></div>
+      <div id="deletedRevisionList" class="revision-list"></div>
+    </div>
+  </dialog>
+
   <div id="savingOverlay" class="saving-overlay hidden" role="status" aria-live="polite" aria-busy="true">
     <div class="saving-card"><span class="loading-spinner"></span><strong id="savingOverlayText">Saving automation…</strong></div>
   </div>
 
-  <script src="/static/app.js?v=0.6.2" defer></script>
+  <script src="/static/state.js?v=1.0.0" defer></script>
+  <script src="/static/api.js?v=1.0.0" defer></script>
+  <script src="/static/modals.js?v=1.0.0" defer></script>
+  <script src="/static/entities.js?v=1.0.0" defer></script>
+  <script src="/static/triggers.js?v=1.0.0" defer></script>
+  <script src="/static/sequence.js?v=1.0.0" defer></script>
+  <script src="/static/overview.js?v=1.0.0" defer></script>
+  <script src="/static/blueprints.js?v=1.0.0" defer></script>
+  <script src="/static/raw-editor.js?v=1.0.0" defer></script>
+  <script src="/static/logs.js?v=1.0.0" defer></script>
+  <script src="/static/automations.js?v=1.0.0" defer></script>
+  <script src="/static/app.js?v=1.0.0" defer></script>
 </body>
 </html>

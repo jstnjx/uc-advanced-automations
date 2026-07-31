@@ -14,6 +14,7 @@ from aiohttp import web
 
 from .config_store import ConfigStore
 from .core_client import CoreClient
+from .database import AutomationDatabase
 from .engine import AutomationEngine
 from .integration import IntegrationController
 from .runtime import detect_runtime
@@ -32,7 +33,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.6.2: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v1.0.0: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,
@@ -45,9 +46,10 @@ async def run() -> None:
 
     loop = asyncio.get_running_loop()
     api = ucapi.IntegrationAPI(loop)
+    database = AutomationDatabase(store.data_dir)
     core = CoreClient(store.settings)
-    engine = AutomationEngine(core, lambda: store.settings().timezone)
-    integration = IntegrationController(api, store, engine, core)
+    engine = AutomationEngine(core, lambda: store.settings().timezone, database)
+    integration = IntegrationController(api, store, engine, core, database)
     triggers = TriggerManager(core, store, engine)
 
     service_status: dict[str, Any] = {
@@ -88,7 +90,7 @@ async def run() -> None:
 
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
 
-    app = create_app(store, core, engine, integration, triggers, runtime, service_status)
+    app = create_app(store, core, engine, integration, triggers, runtime, database, service_status)
     runner = web.AppRunner(app, access_log=_LOG)
     await runner.setup()
     try:
@@ -132,6 +134,7 @@ async def run() -> None:
         await engine.close()
         await core.close()
         await runner.cleanup()
+        database.close()
 
 
 def main() -> None:

@@ -14,6 +14,7 @@ from ucapi.ui import Size, UiPage, create_ui_text
 from .config_store import ConfigStore
 from .core_client import CoreApiError, CoreClient
 from .engine import AutomationEngine
+from .database import AutomationDatabase
 from .models import Automation
 
 _LOG = logging.getLogger(__name__)
@@ -30,15 +31,17 @@ class IntegrationController:
         store: ConfigStore,
         engine: AutomationEngine,
         core: CoreClient,
+        database: AutomationDatabase | None = None,
     ) -> None:
         self.api = api
         self.store = store
         self.engine = engine
         self.core = core
+        self.database = database or engine.database
         self._definition_signature = ""
         self._refresh_lock = asyncio.Lock()
         self._last_refresh: dict[str, Any] = {"status": "not-run", "changed": False}
-        self._last_triggered_name = "No automation triggered yet"
+        self._last_triggered_name = self.database.latest_triggered_name() or "No automation triggered yet"
         self.engine.add_start_listener(self._automation_started)
 
     @property

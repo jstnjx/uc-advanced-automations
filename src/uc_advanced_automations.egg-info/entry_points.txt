@@ -1,2 +1,0 @@
-[console_scripts]
-uc-advanced-automations = uc_advanced_automations.main:main
