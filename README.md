@@ -4,21 +4,19 @@ Advanced Automations is a local visual automation engine for **Unfolded Circle R
 
 The integration combines entity triggers, conditions, commands, schedules, waits, HTTP requests, recovery behavior and persistent diagnostics in one workflow editor.
 
-## v1.0.0 highlights
+## Screenshots
 
-- Four-step visual editor with collapsible trigger and sequence cards
-- Persistent run history and per-automation execution statistics
-- Persistent automation revisions, comparison, restoration and deleted-automation recovery
-- Undo and redo in the visual editor and raw JSON editor
-- Portable blueprints with a separate entity choice for every trigger, condition and step reference
-- Scheduled, interval, entity-duration, threshold, attribute-change, reconnect, webhook, automation-outcome and manual triggers
-- Explicit wait outcomes for matched conditions and timeouts
-- Per-step timeouts, retries, fixed or exponential backoff and failure branches
-- Maximum automation runtime, parallel groups, cancellation cleanup and rollback sequences
-- Single, Replace and Parallel run modes
-- Read-only sensor handling and a persistent **Last automation triggered** sensor
-- Structured validation dialogs and graceful HTTP 400 responses
-- Local Material Symbols assets with no external font or icon requests
+### Automation dashboard
+
+![Advanced Automations dashboard with the automation list, empty-state editor and run log](docs/screenshots/automation-dashboard.png)
+
+### Guided automation editor
+
+![Automation details step in the guided four-step editor](docs/screenshots/automation-editor.png)
+
+### Sequence step picker
+
+![Sequence step picker with entity, delay, condition, parallel, HTTP and log actions](docs/screenshots/sequence-step-picker.png)
 
 ## Automation editor
 
