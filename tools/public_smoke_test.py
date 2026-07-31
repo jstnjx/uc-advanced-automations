@@ -133,6 +133,16 @@ def main() -> None:
     if missing_icons:
         raise AssertionError(f"Missing Material Symbols referenced by styles.css: {missing_icons}")
 
+
+    build_remote = (ROOT / "tools" / "build_remote.sh").read_text(encoding="utf-8")
+    if "--collect-all zeroconf" not in build_remote:
+        raise AssertionError("ARM64 build must collect all zeroconf runtime modules")
+    workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    if "smoke_remote_runtime.sh" not in workflow:
+        raise AssertionError("ARM64 workflow must execute the finished driver binary")
+    if not (ROOT / "tools" / "smoke_remote_runtime.sh").is_file():
+        raise AssertionError("Missing ARM64 runtime smoke-test script")
+
     print(f"Public smoke checks passed for Advanced Automations v{__version__}")
 
 

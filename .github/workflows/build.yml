@@ -104,6 +104,7 @@ jobs:
           ARCHIVE="$(find . -maxdepth 1 -name 'uc-intg-advanced-automations-*-aarch64.tar.gz' -print -quit)"
           test -n "$ARCHIVE"
           bash ./tools/verify_remote_archive.sh "$ARCHIVE"
+          bash ./tools/smoke_remote_runtime.sh "$ARCHIVE"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
       - uses: actions/upload-artifact@v7
         with:

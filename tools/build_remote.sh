@@ -51,6 +51,7 @@ python -m PyInstaller \
   --name driver \
   --paths src \
   --collect-data uc_advanced_automations \
+  --collect-all zeroconf \
   driver.py
 
 mkdir -p artifacts/bin
