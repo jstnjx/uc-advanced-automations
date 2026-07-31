@@ -1,653 +1,297 @@
 # Advanced Automations
 
-<p align="center">
-  <img src="advanced-automations.png" alt="Advanced Automations icon" width="128">
-</p>
-
-Advanced Automations is a local visual automation engine for **Unfolded Circle Remote Two** and **Remote 3**. It combines entity triggers, conditions, commands, schedules, waits, HTTP requests, recovery logic, persistent run history and revision management in one browser-based editor.
-
-It can run in either of two forms:
-
-* As an **external integration service** on a server, NAS or Docker host
-* Directly on a supported Remote as an **ARM64 custom integration package**
-
-All automation processing happens locally. Cloud services are only contacted when an automation explicitly contains an HTTP request to an external endpoint.
-
-## Features
-
-### Visual automation editor
-
-Automations are created through a guided four-step flow:
-
-1. **Automation details** — name, description, enabled state, run mode and runtime controls
-2. **Choose entities** — select the entities available to the automation
-3. **Define triggers** — configure when the automation starts
-4. **Define sequence** — build the actions, branches, waits and recovery behavior
-
-Trigger and sequence cards are collapsible and can be reordered with drag and drop.
-
-### Supported trigger types
-
-* Entity state transition
-* Entity remains in a state for a duration
-* Numeric threshold crossing with optional hysteresis
-* Any attribute change
-* Selected attribute change
-* Scheduled local time with weekday selection
-* Periodic interval
-* Initial Remote connection
-* Remote reconnect
-* Local webhook
-* Another automation succeeds
-* Another automation fails
-* Another automation completes with any result
-* Manual virtual button
-
-Trigger behavior can be configured to either:
-
-* Start when **any enabled trigger** matches
-* Start when the changed trigger matches **and every configured target state is currently true**
-
-### Sequence steps
-
-* **Entity** — send a supported command to a controllable entity
-* **Delay** — pause for a fixed duration
-* **If / else** — evaluate entity or time conditions and run a branch
-* **Wait for condition** — wait for a condition with explicit match and timeout outcomes
-* **Parallel group** — execute multiple branches concurrently
-* **HTTP request** — call an HTTP or HTTPS endpoint
-* **Log message** — add a diagnostic event to the run history
-
-Sensors remain available for triggers and conditions, but they cannot be selected as command targets.
-
-### Run modes
-
-* **Single** — ignore a new start while the automation is already running
-* **Replace** — cancel the active run and restart from the beginning
-* **Parallel** — allow multiple simultaneous runs
-
-### Execution policies
-
-Advanced Automations supports structured runtime control at both step and automation level:
-
-* Per-step timeout
-* Retry count
-* Fixed retry delay
-* Exponential retry backoff
-* Failure branch
-* Continue after final failure
-* Fail after final failure
-* Request automation rollback
-* Maximum automation runtime
-* Parallel branches with wait-for-all or wait-for-any behavior
-* Cancellation cleanup sequence
-* Rollback sequence
-
-### Persistent run history
-
-Run history is stored in SQLite and survives service restarts. Each automation overview can display:
-
-* Last run
-* Last successful run
-* Last failure
-* Average duration
-* Recent run history
-* Currently active step
-
-Runs that were still active when the service stopped unexpectedly are marked as cancelled on the next start.
-
-### Revisions and recovery
-
-Before an automation is updated, deleted, restored, imported or replaced through the raw editor, the previous configuration is stored as a revision.
-
-* Up to 50 revisions are retained per automation
-* Revisions record their timestamp, action and edit source
-* Revisions can be compared as formatted JSON
-* Any retained revision can be restored
-* Deleted automations remain in a recovery archive
-* Deleted automations can be restored with their original identifier
-* The visual editor and raw JSON editor both provide undo and redo before saving
-
-### Automation blueprints
-
-Blueprints are portable automation templates.
-
-* The export contains only the automation itself
-* Source entity records and installation metadata are not included
-* Every entity reference is replaced with an independent placeholder
-* During import, the user must choose a local entity for every placeholder
-* Sensor entities are excluded from command-target placeholders
-* API keys and Remote connection settings are never exported
-
-### Raw JSON editor
-
-Automations can also be edited directly as JSON. JSON is used instead of YAML because it is the integration's native persisted format and avoids implicit YAML type conversion.
-
-The raw editor includes:
-
-* Formatting
-* Syntax validation
-* Undo and redo
-* Server-side schema validation
-* Automatic revision creation when saved
-
-### Remote entities
-
-The integration exposes:
-
-* **Advanced Automations** — a Remote entity containing enabled automation commands and optional touchscreen pages
-* **Last automation triggered** — a read-only sensor showing the most recently started automation
-
-The last-triggered value is restored from persistent history after a restart.
-
-## Requirements
-
-* Unfolded Circle Remote Two or Remote 3
-* Remote Core API compatible with `min_core_api` **0.35.0** or newer
-* A current Web Configurator PIN for first-time API authentication
-* For external deployment:
-
-  * Docker with host networking, or
-  * Python 3.11 or newer
-* For direct Remote deployment:
-
-  * An ARM64 custom-integration archive built for `aarch64`
-
-## Installation options
-
-### Option 1: External integration installer
-
-This is the recommended deployment method when using an external integration installer.
-
-The service expects:
-
-* Host networking so it can communicate directly with the Remote
-* A persistent configuration directory mounted at `/config`
-* An Integration API port in the installer-managed range
-* A web editor port starting at **9201**
-
-Install the supplied driver metadata and wheel through the external integration installer, then complete the integration setup flow on the Remote.
-
-The installer normally provides these values automatically:
-
-```text
-UC_EXTERNAL=true
-UC_RUNTIME_MODE=external
-UC_CONFIG_HOME=/config
-UC_INTEGRATION_INTERFACE=0.0.0.0
-UC_INTEGRATION_HTTP_PORT=<installer-assigned port>
-UC_AUTOMATIONS_WEB_HOST=0.0.0.0
-UC_AUTOMATIONS_WEB_PORT=9201
-```
-
-If port 9201 is occupied, the editor scans upward until it finds a free port outside the Integration API reserved range.
-
-The selected port is written to:
-
-```text
-/config/web-port.txt
-```
-
-### Option 2: Docker Compose
-
-Clone the repository and start the service:
-
-```bash
-git clone https://github.com/jstnjx/uc-advanced-automations.git
-cd uc-advanced-automations
-docker compose up -d --build
-```
-
-The included Compose configuration uses:
-
-* Host networking
-* Integration API port `9090`
-* Web editor port `9201`
-* Persistent data in `./data`
-
-Open the editor at:
-
-```text
-http://SERVER-IP:9201
-```
-
-Useful commands:
-
-```bash
-# Show service status
-docker compose ps
-
-# Follow logs
-docker compose logs -f
-
-# Restart the service
-docker compose restart
-
-# Stop the service
-docker compose down
-```
-
-### Option 3: Python service
-
-Create a Python 3.11 virtual environment and install the project:
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
-```
-
-Create a persistent data directory and start the service:
-
-```bash
-export UC_EXTERNAL=true
-export UC_RUNTIME_MODE=external
-export UC_AUTOMATIONS_DATA_DIR="$PWD/data"
-export UC_INTEGRATION_INTERFACE=0.0.0.0
-export UC_INTEGRATION_HTTP_PORT=9090
-export UC_AUTOMATIONS_WEB_HOST=0.0.0.0
-export UC_AUTOMATIONS_WEB_PORT=9201
-
-uc-advanced-automations
-```
-
-A hardened example systemd unit is included at:
-
-```text
-systemd/uc-advanced-automations.service
-```
-
-### Option 4: Direct Remote custom integration
-
-The direct Remote package must be built in an ARM64 environment. Use the included GitHub Actions workflow or an ARM64 build host.
-
-Build the archive:
-
-```bash
-bash ./tools/build_remote.sh aarch64
-```
-
-The generated package follows this naming pattern:
-
-```text
-uc-intg-advanced-automations-v1.0.4-aarch64.tar.gz
-```
-
-Verify it before installation:
-
-```bash
-bash ./tools/verify_remote_archive.sh \
-  ./uc-intg-advanced-automations-v1.0.4-aarch64.tar.gz
-```
-
-> [!NOTE]
-> The Python wheel is intended for external or server deployment. It is not the custom-integration archive installed directly on a Remote.
-
-## First-time setup
-
-### 1. Generate a Web Configurator PIN
-
-On the Remote, open the profile or Web Configurator access settings and generate a current Web Configurator PIN.
-
-The PIN is used only once to create a persistent API key.
-
-### 2. Start the integration setup flow
-
-Open the Advanced Automations integration on the Remote and begin setup.
-
-Enter:
-
-* The Remote IP address or hostname
-* The current Web Configurator PIN
-
-### 3. Persistent API-key creation
-
-During setup, the integration:
-
-1. Authenticates against the Remote Core REST API as `web-configurator`
-2. Uses the entered PIN as the temporary password
-3. Creates an `admin`-scoped persistent API key
-4. Stores the returned one-time API key in the private configuration file
-5. Immediately discards the submitted PIN
-
-The PIN is not written to configuration and is not included in normal logs.
-
-When reconfiguring the same Remote:
-
-* Leave the PIN empty to retain the existing API key
-* Enter a new PIN to create a replacement API key
-
-### 4. Add the integration entities
-
-After setup, add the integration's entities to the Remote configuration:
-
-* **Advanced Automations**
-* **Last automation triggered**
-
-The main Remote entity is refreshed when automation commands or touchscreen pages change. A manual **Refresh entities** action is also available in the web editor.
-
-### 5. Open the editor
-
-For external installations, open:
-
-```text
-http://SERVER-IP:9201
-```
-
-If the page is unavailable, check the actual selected port in:
-
-```text
-/config/web-port.txt
-```
-
-or, for standalone Docker deployments:
-
-```text
-./data/web-port.txt
-```
-
-## Creating an automation
-
-### Step 1: Automation details
+Advanced Automations is a local visual automation engine for **Unfolded Circle Remote Two** and **Remote 3**. It can run directly on a Remote as an ARM64 custom integration or as an external container managed by an external integration installer.
+
+The integration combines entity triggers, conditions, commands, schedules, waits, HTTP requests, recovery behavior and persistent diagnostics in one workflow editor.
+
+## v1.0.0 highlights
+
+- Four-step visual editor with collapsible trigger and sequence cards
+- Persistent run history and per-automation execution statistics
+- Persistent automation revisions, comparison, restoration and deleted-automation recovery
+- Undo and redo in the visual editor and raw JSON editor
+- Portable blueprints with a separate entity choice for every trigger, condition and step reference
+- Scheduled, interval, entity-duration, threshold, attribute-change, reconnect, webhook, automation-outcome and manual triggers
+- Explicit wait outcomes for matched conditions and timeouts
+- Per-step timeouts, retries, fixed or exponential backoff and failure branches
+- Maximum automation runtime, parallel groups, cancellation cleanup and rollback sequences
+- Single, Replace and Parallel run modes
+- Read-only sensor handling and a persistent **Last automation triggered** sensor
+- Structured validation dialogs and graceful HTTP 400 responses
+- Local Material Symbols assets with no external font or icon requests
+
+## Automation editor
+
+Selecting an existing automation opens its overview. Select **Edit** to enter the guided configuration flow.
+
+### 1. Automation details
 
 Configure:
 
-* Name
-* Description
-* Enabled or disabled state
-* Optional Remote command
-* Optional touchscreen exposure
-* Run mode
-* Optional maximum runtime
-* Cancellation cleanup sequence
-* Rollback sequence
+- Name and description
+- Enabled or disabled state
+- Optional Remote command and touchscreen exposure
+- Run mode:
+  - **Single:** ignore another start while the automation is active
+  - **Replace:** cancel the active run and start again
+  - **Parallel:** allow simultaneous runs
+- Optional maximum runtime
+- Cancellation cleanup sequence
+- Rollback sequence
 
-### Step 2: Choose entities
+### 2. Choose entities
 
-Open the entity dropdown and select the entities used by the automation.
+The compact entity dropdown contains all entities reported by the Remote. It supports:
 
-The picker supports:
+- Search
+- Entity-type filters
+- Source-integration filters
+- Select-visible and clear-unused actions
+- Protection for entities already referenced by the automation
 
-* Search
-* Entity-type filters
-* Source-integration filters
-* Select shown
-* Clear unused
+Sensors can be selected for triggers and conditions but are not available as command targets.
 
-Entities already referenced by a trigger, condition or sequence step cannot be removed accidentally.
+### 3. Define triggers
 
-### Step 3: Define triggers
+Trigger cards are collapsible and can be reordered with drag and drop.
 
-Add one or more trigger cards, configure their values, then select the trigger-combination behavior.
+Supported trigger types:
 
-Common examples:
+- Entity state transition
+- Entity remains in a state for a duration
+- Numeric threshold crossing with optional hysteresis
+- Any entity attribute change or one selected attribute change
+- Scheduled local time with weekday selection
+- Periodic interval
+- Remote reconnect or integration startup
+- Local webhook
+- Completion or failure of another automation
+- Manual virtual button
 
-* Start when a media player changes from `OFF` to `ON`
-* Start when a sensor remains unavailable for 30 seconds
-* Start when a numeric value rises above a threshold
-* Run every weekday at a defined local time
-* Run when another automation fails
-* Expose a manual virtual trigger
+Trigger behavior can be configured as:
 
-### Step 4: Define sequence
+- **Start when any enabled trigger matches**
+- **Start when the changed trigger matches and all configured target states are currently true**
 
-Add sequence steps and arrange them with drag and drop.
+### 4. Define sequence
 
-Steps may contain nested branches, execution policies and explicit timeout behavior. Use the automation overview after saving to review the complete trigger and execution timeline.
+Sequence cards are collapsible, support drag-and-drop ordering and can contain nested branches.
+
+Available step types:
+
+- **Entity:** send a supported command to a controllable entity
+- **Delay:** pause for a fixed duration
+- **If / else:** evaluate entity or time conditions and run a branch
+- **Wait for condition:** wait for a condition with explicit match and timeout outcomes
+- **Parallel group:** run multiple branches concurrently and wait for all or any branch
+- **HTTP request:** call an HTTP or HTTPS endpoint
+- **Log message:** write a diagnostic run event
 
 ## Wait for condition
 
 A wait step defines:
 
-* One or more conditions
-* Whether every condition or any condition must match
-* Timeout
-* Polling interval
-* Time reference
-* Match outcome
-* Timeout outcome
-
-Time reference options:
-
-* **From automation trigger**
-* **From when this step begins**
-
-When the condition matches:
-
-* Continue the sequence
-* Stop successfully
-* Run a match branch
-
-When the timeout expires:
-
-* Continue the sequence
-* Stop successfully
-* Fail the automation
-* Run a timeout branch
+- Conditions and whether every or any condition must match
+- Timeout and polling interval
+- Time reference:
+  - From the automation trigger
+  - From when the wait step begins
+- When the condition matches:
+  - Continue the sequence
+  - Stop successfully
+  - Run a match branch
+- When the timeout expires:
+  - Continue the sequence
+  - Stop successfully
+  - Fail the automation
+  - Run a timeout branch
 
 Example:
 
 > Wait up to 10 seconds from the trigger for playback to resume. If playback resumes, stop successfully. If the timeout expires, continue with the remaining sequence.
 
-## Webhooks and manual triggers
+## Execution policies
 
-Webhook triggers are available locally at:
+Command, condition, wait, parallel, HTTP and log steps support structured failure handling:
+
+- Per-step timeout
+- Retry count
+- Retry delay
+- Fixed or exponential retry backoff
+- Continue, fail, rollback or run a failure branch after the final failure
+
+Automation-level controls include:
+
+- Maximum runtime
+- Parallel sequence groups
+- Cancellation cleanup steps
+- Rollback steps
+
+## Automation overview and persistent history
+
+The overview shows the complete trigger and sequence timeline together with persistent execution information:
+
+- Last run
+- Last successful run
+- Last failure
+- Average duration
+- Recent run history
+- Currently active step
+
+Run history, step progress and diagnostic events are stored in `automation-data.sqlite3` and survive service restarts. Runs left active by an unexpected restart are marked as cancelled.
+
+The run log is refreshed only when **Refresh** is selected or **Continuous refresh** is enabled.
+
+## Revisions, undo and rollback
+
+Before a persisted automation is updated, deleted, restored or replaced through the raw editor or blueprint import, the previous state is saved as a revision.
+
+- Up to 50 revisions are retained per automation
+- Revisions record the timestamp, action and source:
+  - Visual editor
+  - Raw editor
+  - Blueprint import
+  - Rollback
+- Revisions can be compared as formatted JSON
+- Any retained revision can be restored
+- Deleted automations remain available in the deleted-automation archive and can be recreated with their original identifier
+- The visual editor and raw JSON editor each provide local undo and redo controls before saving
+
+## Automation blueprints
+
+Blueprint exports contain the automation template only. They do not attach or export entity records from the source installation.
+
+Every entity reference in a trigger, condition, command, failure branch, wait branch, parallel branch, cancellation sequence or rollback sequence is replaced with its own placeholder. During import, the user must select a local entity for every placeholder before the automation can be created.
+
+Blueprints never contain API keys, Remote connection settings or other installation credentials.
+
+## Raw JSON editor
+
+JSON is the integration's native persisted automation format. The raw editor therefore uses JSON rather than YAML, avoiding implicit YAML type conversion and keeping visual and raw representations identical.
+
+The raw editor provides:
+
+- Formatting and syntax validation
+- Undo and redo
+- Structured server-side validation when saved
+- Revision creation with `raw_editor` as the edit source
+
+## Last automation triggered sensor
+
+The integration exposes a read-only sensor named **Last automation triggered**. Its value updates whenever an automation run is accepted from a trigger, the Remote or the web interface. The last value is restored from persistent run history after restart.
+
+## Remote authentication setup
+
+During integration setup:
+
+1. Enter the Remote address.
+2. Enter the current Web Configurator PIN.
+3. The integration authenticates as `web-configurator` and creates an `admin`-scoped persistent API key through the official Unfolded Circle Core REST API.
+4. The returned one-time API key is stored in the private configuration file.
+5. The submitted PIN is discarded and never persisted.
+
+When reconfiguring the same Remote, an empty PIN retains the existing API key. Entering a PIN creates a replacement key.
+
+## External service installation
+
+Runtime behavior:
+
+- Host networking for direct Remote access
+- Persistent configuration mounted at `/config`
+- Integration API port assigned in the reserved range
+- Web editor starting at port **9201** and scanning upward if occupied
+- Integration discovery publishing disabled by default for managed external containers
+
+After installation, open:
 
 ```text
-POST /api/webhooks/{webhook_id}
+http://SERVER-IP:9201
 ```
 
-Manual virtual triggers can be started through:
+The selected editor port is written to:
 
 ```text
-POST /api/triggers/{trigger_id}/run
+/config/web-port.txt
 ```
 
-Keep webhook identifiers private if the editor/API is reachable by other devices on the network.
-
-## Data and persistence
-
-The data directory contains the integration's persistent state.
-
-| File                      | Purpose                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| `config.json`             | Remote settings and automation definitions                                       |
-| `automation-data.sqlite3` | Run history, active-step data, events, revisions and deleted-automation recovery |
-| `web-port.txt`            | Actual web editor port selected at startup                                       |
-| `config.invalid-*.json`   | Backup created when invalid configuration recovery is required                   |
-
-For installer-managed deployments, the data directory is normally `/config`.
-
-For the included Docker Compose deployment, it is `./data` on the host and `/data` inside the container.
-
-### Backup
-
-Stop or pause writes before taking a consistent manual backup, then copy the complete data directory:
+### Docker Compose
 
 ```bash
-cp -a ./data ./data-backup
+docker compose up -d --build
 ```
 
-For Docker Compose:
+## Custom integration package
+
+Build the ARM64 package in an ARM64 environment or through GitHub Actions. The included workflow uses GitHub's native `ubuntu-24.04-arm` runner and the official `r2-pyinstaller` image, avoiding QEMU emulation:
 
 ```bash
-docker compose stop
-cp -a ./data ./data-backup
-docker compose start
+bash ./tools/build_remote.sh aarch64
 ```
 
-### Restore
+The generated archive uses this pattern:
 
-Stop the service, replace the data directory with the backup, then start the service again.
-
-Keep `config.json` and `automation-data.sqlite3` together so automation definitions, revisions and run history remain synchronized.
-
-## Configuration
-
-Default settings:
-
-```json
-{
-  "settings": {
-    "core_url": "ws://remote.local/ws",
-    "api_key": "",
-    "web_host": "0.0.0.0",
-    "web_port": 9201,
-    "timezone": "Europe/Berlin",
-    "request_timeout_seconds": 10
-  },
-  "automations": []
-}
+```text
+uc-intg-advanced-automations-v1.0.5-aarch64.tar.gz
 ```
 
-The normal setup flow and web editor should be used instead of editing `config.json` manually.
+Verify an archive before installation:
 
-### Environment variables
+```bash
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v1.0.5-aarch64.tar.gz
+```
 
-| Variable                   |                      Default | Purpose                                               |
-| -------------------------- | ---------------------------: | ----------------------------------------------------- |
-| `UC_EXTERNAL`              |      `true` in the container | Marks the service as externally hosted                |
-| `UC_RUNTIME_MODE`          |                   `external` | Selects the runtime profile                           |
-| `UC_AUTOMATIONS_DATA_DIR`  |  `/data` or `UC_CONFIG_HOME` | Persistent data directory                             |
-| `UC_CONFIG_HOME`           |                        unset | Installer-provided persistent configuration directory |
-| `UC_INTEGRATION_INTERFACE` |                    `0.0.0.0` | Integration API bind address                          |
-| `UC_INTEGRATION_HTTP_PORT` |                       `9090` | Integration API port                                  |
-| `UC_AUTOMATIONS_WEB_HOST`  |                    `0.0.0.0` | Web editor bind address                               |
-| `UC_AUTOMATIONS_WEB_PORT`  |                       `9201` | Preferred web editor port                             |
-| `UC_DISABLE_MDNS_PUBLISH`  | `true` in managed containers | Disables duplicate integration discovery publication  |
+The Python wheel is for external/server deployment and is not a custom-integration archive.
 
 ## Web API
 
-| Method   | Endpoint                                             | Purpose                                           |
-| -------- | ---------------------------------------------------- | ------------------------------------------------- |
-| `GET`    | `/api/health`                                        | Liveness and startup diagnostics                  |
-| `GET`    | `/api/status`                                        | Connection, trigger and execution status          |
-| `GET`    | `/api/settings`                                      | Read non-PIN configuration settings               |
-| `PUT`    | `/api/settings`                                      | Update settings                                   |
-| `POST`   | `/api/settings/test`                                 | Test the Remote connection                        |
-| `GET`    | `/api/entities`                                      | List available entities and current attributes    |
-| `GET`    | `/api/entities/{id}/commands`                        | List supported commands for an entity             |
-| `POST`   | `/api/integration/refresh`                           | Refresh integration entities on the Remote        |
-| `GET`    | `/api/automations`                                   | List automations and history summaries            |
-| `POST`   | `/api/automations`                                   | Create an automation                              |
-| `PUT`    | `/api/automations/{id}`                              | Update an automation                              |
-| `DELETE` | `/api/automations/{id}`                              | Delete and archive an automation                  |
-| `POST`   | `/api/automations/{id}/run`                          | Start an automation                               |
-| `GET`    | `/api/automations/{id}/history`                      | Read persistent run history and active-step state |
-| `GET`    | `/api/automations/{id}/revisions`                    | List retained revisions                           |
-| `POST`   | `/api/automations/{id}/revisions/{revision}/restore` | Restore a revision                                |
-| `GET`    | `/api/revisions/deleted`                             | List deleted-automation revisions                 |
-| `GET`    | `/api/revisions/{revision}`                          | Read one revision                                 |
-| `POST`   | `/api/revisions/{revision}/restore-deleted`          | Restore a deleted automation                      |
-| `POST`   | `/api/triggers/{trigger}/run`                        | Run a manual virtual trigger                      |
-| `POST`   | `/api/webhooks/{webhook}`                            | Run a webhook trigger                             |
-| `GET`    | `/api/logs`                                          | Read diagnostic run events                        |
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Container liveness and service diagnostics |
+| `GET` | `/api/status` | Connection, trigger and run status |
+| `GET` | `/api/entities` | Available entities and current attributes |
+| `GET` | `/api/entities/{id}/commands` | Command metadata for an entity |
+| `GET` | `/api/automations` | Automations and persistent history summaries |
+| `POST` | `/api/automations` | Create an automation |
+| `PUT` | `/api/automations/{id}` | Update an automation |
+| `DELETE` | `/api/automations/{id}` | Delete and archive an automation |
+| `POST` | `/api/automations/{id}/run` | Start an automation |
+| `GET` | `/api/automations/{id}/history` | Persistent history and current step |
+| `GET` | `/api/automations/{id}/revisions` | Retained revisions |
+| `POST` | `/api/automations/{id}/revisions/{revision}/restore` | Restore a revision |
+| `GET` | `/api/revisions/deleted` | Deleted-automation archive |
+| `POST` | `/api/revisions/{revision}/restore-deleted` | Restore a deleted automation |
+| `POST` | `/api/triggers/{trigger}/run` | Run a manual trigger |
+| `POST` | `/api/webhooks/{webhook}` | Run matching webhook triggers |
+| `GET` | `/api/logs` | Persistent run events |
+| `POST` | `/api/integration/refresh` | Refresh generated entities and commands |
 
-Invalid automation payloads return structured HTTP `400` responses suitable for display in the editor. They should not produce an HTTP `500` error.
+Invalid automation payloads return HTTP `400` with JSON-safe field details instead of an internal-server-error response.
 
-## Troubleshooting
+## Persistent storage
 
-### The editor returns `404: Not Found`
+`config.json` contains connection settings and automation definitions. It is written atomically and, where supported by the filesystem, uses mode `0600`.
 
-The Integration API and web editor use different ports. A plain HTTP request to the Integration API port may return `404` normally.
+`automation-data.sqlite3` contains run history, run events and automation revisions. SQLite WAL mode is enabled for durable local access.
 
-Open the editor on port 9201 or read the actual port from `web-port.txt`.
-
-### Port 9201 is already in use
-
-The editor scans upward automatically:
-
-```text
-9201 → 9202 → 9203 → ...
-```
-
-Check service logs or `web-port.txt` for the selected port.
-
-### The Remote cannot connect to the integration
-
-Check:
-
-* The Integration API port is reachable from the Remote
-* Host networking is enabled for Docker
-* A firewall is not blocking the assigned Integration API port
-* The integration is configured with the correct address
-* `/api/health` reports `integration_api_ready: true`
-
-### Remote API authentication fails
-
-* Generate a new Web Configurator PIN on the Remote
-* Confirm Web Configurator access is enabled
-* Enter the Remote address without an unrelated proxy path
-* Retry the setup flow with the new PIN
-
-The PIN is only valid for creating the persistent API key and is not retained by the integration.
-
-### Entities or commands are missing
-
-* Select **Refresh entities** in the editor
-* Confirm the integration entities have been added to the Remote
-* Reconnect or reload the integration on the Remote
-* Check `/api/status` and the service logs for Core API errors
-
-### The browser still shows an older interface
-
-Perform a hard refresh:
-
-```text
-Ctrl+F5
-```
-
-The frontend assets are versioned, but an older browser cache or reverse proxy may still need to be cleared after an upgrade.
-
-### An automation was deleted or changed accidentally
-
-Open the revision history or deleted-automation archive. v1.0.4 retains up to 50 revisions per automation and supports restoration of deleted automations with their original identifier.
+Corrupt or incompatible JSON configurations are backed up and recovered. Valid automations are salvaged individually where possible.
 
 ## Development
 
-Install development dependencies and run the test suite:
+Install runtime dependencies and run the public validation suite:
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pip install pytest pytest-asyncio
-pytest -q
+make test
 ```
 
-Build a wheel:
+The public validation suite compiles the Python sources, imports the package, checks version and driver metadata, verifies packaged frontend assets, and validates every JavaScript module. If a private `tests/` directory is present locally, `make test` discovers and runs it automatically after the public checks.
+
+Build the external wheel:
 
 ```bash
-python -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
-```
-
-Validate Python syntax:
-
-```bash
-python -m compileall -q src tests
-```
-
-## Project structure
-
-```text
-src/uc_advanced_automations/
-├── api/static frontend modules
-├── config_store.py        # persistent configuration and migration
-├── core_client.py         # Remote Core API client
-├── database.py            # SQLite history and revision storage
-├── engine.py              # automation execution engine
-├── integration.py         # entities exposed to the Remote
-├── models.py              # validated automation schema
-├── remote_auth.py         # persistent API-key creation
-├── setup_flow.py          # Remote integration setup
-├── triggers.py            # trigger scheduling and evaluation
-└── web.py                 # local editor and API routes
+python -m pip wheel . --no-deps --no-build-isolation -w dist
 ```
 
 ## License
 
 Released under the [MIT License](LICENSE).
-
-Material Symbols assets are provided under the terms documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

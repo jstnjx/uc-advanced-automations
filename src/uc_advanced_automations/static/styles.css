@@ -8,43 +8,43 @@
   -webkit-mask: var(--mi-url) center / contain no-repeat;
   mask: var(--mi-url) center / contain no-repeat;
 }
-.mi-add { --mi-url: url("/static/icons/add.svg?v=1.0.4"); }
-.mi-delete { --mi-url: url("/static/icons/delete.svg?v=1.0.4"); }
-.mi-edit { --mi-url: url("/static/icons/edit.svg?v=1.0.4"); }
-.mi-play_arrow { --mi-url: url("/static/icons/play_arrow.svg?v=1.0.4"); }
-.mi-refresh { --mi-url: url("/static/icons/refresh.svg?v=1.0.4"); }
-.mi-settings { --mi-url: url("/static/icons/settings.svg?v=1.0.4"); }
-.mi-upload_file { --mi-url: url("/static/icons/upload_file.svg?v=1.0.4"); }
-.mi-share { --mi-url: url("/static/icons/share.svg?v=1.0.4"); }
-.mi-code { --mi-url: url("/static/icons/code.svg?v=1.0.4"); }
-.mi-save { --mi-url: url("/static/icons/save.svg?v=1.0.4"); }
-.mi-arrow_back { --mi-url: url("/static/icons/arrow_back.svg?v=1.0.4"); }
-.mi-arrow_forward { --mi-url: url("/static/icons/arrow_forward.svg?v=1.0.4"); }
-.mi-expand_more { --mi-url: url("/static/icons/expand_more.svg?v=1.0.4"); }
-.mi-close { --mi-url: url("/static/icons/close.svg?v=1.0.4"); }
-.mi-filter_list { --mi-url: url("/static/icons/filter_list.svg?v=1.0.4"); }
-.mi-search { --mi-url: url("/static/icons/search.svg?v=1.0.4"); }
-.mi-drag_indicator { --mi-url: url("/static/icons/drag_indicator.svg?v=1.0.4"); }
-.mi-check { --mi-url: url("/static/icons/check.svg?v=1.0.4"); }
-.mi-content_copy { --mi-url: url("/static/icons/content_copy.svg?v=1.0.4"); }
-.mi-download { --mi-url: url("/static/icons/download.svg?v=1.0.4"); }
-.mi-visibility { --mi-url: url("/static/icons/visibility.svg?v=1.0.4"); }
-.mi-devices { --mi-url: url("/static/icons/devices.svg?v=1.0.4"); }
-.mi-timer { --mi-url: url("/static/icons/timer.svg?v=1.0.4"); }
-.mi-alt_route { --mi-url: url("/static/icons/alt_route.svg?v=1.0.4"); }
-.mi-hourglass_empty { --mi-url: url("/static/icons/hourglass_empty.svg?v=1.0.4"); }
-.mi-http { --mi-url: url("/static/icons/http.svg?v=1.0.4"); }
-.mi-description { --mi-url: url("/static/icons/description.svg?v=1.0.4"); }
-.mi-select_all { --mi-url: url("/static/icons/select_all.svg?v=1.0.4"); }
-.mi-deselect { --mi-url: url("/static/icons/deselect.svg?v=1.0.4"); }
+.mi-add { --mi-url: url("/static/icons/add.svg?v=1.0.5"); }
+.mi-delete { --mi-url: url("/static/icons/delete.svg?v=1.0.5"); }
+.mi-edit { --mi-url: url("/static/icons/edit.svg?v=1.0.5"); }
+.mi-play_arrow { --mi-url: url("/static/icons/play_arrow.svg?v=1.0.5"); }
+.mi-refresh { --mi-url: url("/static/icons/refresh.svg?v=1.0.5"); }
+.mi-settings { --mi-url: url("/static/icons/settings.svg?v=1.0.5"); }
+.mi-upload_file { --mi-url: url("/static/icons/upload_file.svg?v=1.0.5"); }
+.mi-share { --mi-url: url("/static/icons/share.svg?v=1.0.5"); }
+.mi-code { --mi-url: url("/static/icons/code.svg?v=1.0.5"); }
+.mi-save { --mi-url: url("/static/icons/save.svg?v=1.0.5"); }
+.mi-arrow_back { --mi-url: url("/static/icons/arrow_back.svg?v=1.0.5"); }
+.mi-arrow_forward { --mi-url: url("/static/icons/arrow_forward.svg?v=1.0.5"); }
+.mi-expand_more { --mi-url: url("/static/icons/expand_more.svg?v=1.0.5"); }
+.mi-close { --mi-url: url("/static/icons/close.svg?v=1.0.5"); }
+.mi-filter_list { --mi-url: url("/static/icons/filter_list.svg?v=1.0.5"); }
+.mi-search { --mi-url: url("/static/icons/search.svg?v=1.0.5"); }
+.mi-drag_indicator { --mi-url: url("/static/icons/drag_indicator.svg?v=1.0.5"); }
+.mi-check { --mi-url: url("/static/icons/check.svg?v=1.0.5"); }
+.mi-content_copy { --mi-url: url("/static/icons/content_copy.svg?v=1.0.5"); }
+.mi-download { --mi-url: url("/static/icons/download.svg?v=1.0.5"); }
+.mi-visibility { --mi-url: url("/static/icons/visibility.svg?v=1.0.5"); }
+.mi-devices { --mi-url: url("/static/icons/devices.svg?v=1.0.5"); }
+.mi-timer { --mi-url: url("/static/icons/timer.svg?v=1.0.5"); }
+.mi-alt_route { --mi-url: url("/static/icons/alt_route.svg?v=1.0.5"); }
+.mi-hourglass_empty { --mi-url: url("/static/icons/hourglass_empty.svg?v=1.0.5"); }
+.mi-http { --mi-url: url("/static/icons/http.svg?v=1.0.5"); }
+.mi-description { --mi-url: url("/static/icons/description.svg?v=1.0.5"); }
+.mi-select_all { --mi-url: url("/static/icons/select_all.svg?v=1.0.5"); }
+.mi-deselect { --mi-url: url("/static/icons/deselect.svg?v=1.0.5"); }
 
-.mi-undo { --mi-url: url("/static/icons/undo.svg?v=1.0.4"); }
-.mi-redo { --mi-url: url("/static/icons/redo.svg?v=1.0.4"); }
-.mi-history { --mi-url: url("/static/icons/history.svg?v=1.0.4"); }
-.mi-account_tree { --mi-url: url("/static/icons/account_tree.svg?v=1.0.4"); }
-.mi-compare_arrows { --mi-url: url("/static/icons/compare_arrows.svg?v=1.0.4"); }
-.mi-expand_less { --mi-url: url("/static/icons/expand_less.svg?v=1.0.4"); }
-.mi-restore { --mi-url: url("/static/icons/restore.svg?v=1.0.4"); }
+.mi-undo { --mi-url: url("/static/icons/undo.svg?v=1.0.5"); }
+.mi-redo { --mi-url: url("/static/icons/redo.svg?v=1.0.5"); }
+.mi-history { --mi-url: url("/static/icons/history.svg?v=1.0.5"); }
+.mi-account_tree { --mi-url: url("/static/icons/account_tree.svg?v=1.0.5"); }
+.mi-compare_arrows { --mi-url: url("/static/icons/compare_arrows.svg?v=1.0.5"); }
+.mi-expand_less { --mi-url: url("/static/icons/expand_less.svg?v=1.0.5"); }
+.mi-restore { --mi-url: url("/static/icons/restore.svg?v=1.0.5"); }
 
 :root {
   color-scheme: dark;
@@ -402,8 +402,10 @@ dialog::backdrop { background: rgba(0,0,0,.68); backdrop-filter: blur(4px); }
 .execution-policy > .field-grid, .execution-policy > div { padding: var(--space-4); }
 .parallel-branches { display: grid; gap: var(--space-3); }
 .parallel-branch { margin: 0; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--field); }
-.recovery-flow { margin-top: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--panel-2) 65%, transparent); }
-.recovery-flow > .steps, .recovery-flow > .section-actions { margin: var(--space-4); }
+.recovery-flow { margin-top: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--panel-2) 65%, transparent); overflow: hidden; }
+.recovery-flow > .branch-head { margin: 0; padding: var(--space-4) var(--space-4) var(--space-3); }
+.recovery-flow > .steps { margin: 0; padding: 0 var(--space-4) var(--space-4); }
+.recovery-flow > .section-actions { margin: 0; padding: 0 var(--space-4) var(--space-4); }
 .recent-run-history { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
 .run-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); }
 .run-history-row > div { min-width: 0; }

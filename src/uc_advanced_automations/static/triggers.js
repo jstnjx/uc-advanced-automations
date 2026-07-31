@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.4 */
+/* Advanced Automations v1.0.5 */
 
 function renderTriggerModeHelp() {
   const automation = selectedAutomation();
