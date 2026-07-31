@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.9 */
+/* Advanced Automations v1.0.10 */
 
 function walkAutomationEntityReferences(automation, callback) {
   (automation.triggers || []).forEach((trigger, index) => {

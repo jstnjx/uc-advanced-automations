@@ -137,6 +137,24 @@ def main() -> None:
     build_remote = (ROOT / "tools" / "build_remote.sh").read_text(encoding="utf-8")
     if "--collect-all zeroconf" not in build_remote:
         raise AssertionError("ARM64 build must collect all zeroconf runtime modules")
+    required_pyinstaller_data = (
+        'src/uc_advanced_automations/driver.json:uc_advanced_automations',
+        'src/uc_advanced_automations/advanced-automations.png:uc_advanced_automations',
+        'src/uc_advanced_automations/THIRD_PARTY_NOTICES.md:uc_advanced_automations',
+        'src/uc_advanced_automations/static:uc_advanced_automations/static',
+    )
+    missing_pyinstaller_data = [
+        value for value in required_pyinstaller_data if value not in build_remote
+    ]
+    if missing_pyinstaller_data:
+        raise AssertionError(
+            "ARM64 build is missing explicit PyInstaller data mappings: "
+            + ", ".join(missing_pyinstaller_data)
+        )
+    if "--collect-data uc_advanced_automations" in build_remote:
+        raise AssertionError(
+            "ARM64 build must not rely on PyInstaller package-data auto-discovery"
+        )
     workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
     if "smoke_remote_runtime.sh" not in workflow:
         raise AssertionError("ARM64 workflow must execute the finished driver binary")

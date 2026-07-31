@@ -8,7 +8,16 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 tar -xzf "$ARCHIVE" -C "$TMP"
-for required in driver.json version.txt advanced-automations.png bin/driver; do
+for required in \
+  driver.json \
+  version.txt \
+  advanced-automations.png \
+  bin/driver \
+  bin/_internal/uc_advanced_automations/driver.json \
+  bin/_internal/uc_advanced_automations/advanced-automations.png \
+  bin/_internal/uc_advanced_automations/THIRD_PARTY_NOTICES.md \
+  bin/_internal/uc_advanced_automations/static/index.html \
+  bin/_internal/uc_advanced_automations/static/styles.css; do
   [[ -e "$TMP/$required" ]] || { echo "Remote archive is missing $required" >&2; exit 1; }
 done
 
@@ -20,11 +29,26 @@ import sys
 
 archive_root = pathlib.Path(sys.argv[1])
 metadata = json.loads((archive_root / "driver.json").read_text(encoding="utf-8"))
+internal_metadata_path = (
+    archive_root / "bin" / "_internal" / "uc_advanced_automations" / "driver.json"
+)
+internal_metadata = json.loads(internal_metadata_path.read_text(encoding="utf-8"))
 version = (archive_root / "version.txt").read_text(encoding="utf-8").strip().removeprefix("v")
 if metadata.get("version") != version:
     raise SystemExit(
         f"driver.json version {metadata.get('version')} does not match version.txt {version}"
     )
+if internal_metadata.get("version") != version:
+    raise SystemExit(
+        "Internal packaged driver.json version "
+        f"{internal_metadata.get('version')} does not match version.txt {version}"
+    )
+for field in ("driver_id", "version", "min_core_api", "name", "icon", "port"):
+    if metadata.get(field) != internal_metadata.get(field):
+        raise SystemExit(
+            f"Internal packaged driver.json differs for {field}: "
+            f"root={metadata.get(field)!r}, internal={internal_metadata.get(field)!r}"
+        )
 
 icon_reference = metadata.get("icon")
 if not isinstance(icon_reference, str) or not icon_reference.startswith("custom:"):

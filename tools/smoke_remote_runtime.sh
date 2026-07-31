@@ -19,6 +19,18 @@ cleanup() {
 trap cleanup EXIT
 
 tar -xzf "$ARCHIVE" -C "$TMP"
+INTERNAL_PACKAGE="$TMP/bin/_internal/uc_advanced_automations"
+for required in \
+  driver.json \
+  advanced-automations.png \
+  THIRD_PARTY_NOTICES.md \
+  static/index.html \
+  static/styles.css; do
+  if [[ ! -e "$INTERNAL_PACKAGE/$required" ]]; then
+    echo "ARM64 package is missing runtime data: bin/_internal/uc_advanced_automations/$required" >&2
+    exit 1
+  fi
+done
 mkdir -p "$TMP/config"
 PORT="${UC_SMOKE_INTEGRATION_PORT:-19001}"
 WEB_PORT="${UC_SMOKE_WEB_PORT:-19201}"
