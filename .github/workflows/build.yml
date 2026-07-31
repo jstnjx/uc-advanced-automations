@@ -8,9 +8,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded branch and pull-request builds, including expensive ARM packages.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_VERSION: "3.11"
-  PYINSTALLER_IMAGE: "docker.io/unfoldedcircle/r2-pyinstaller:3.11.13-0.6.0"
+  PYINSTALLER_IMAGE: "docker.io/unfoldedcircle/r2-pyinstaller:3.11.13-0.7.0"
   REGISTRY: ghcr.io
 
 jobs:
@@ -77,8 +82,8 @@ jobs:
 
 
   remote-package:
-    runs-on: ubuntu-24.04
-    needs: test
+    # Native ARM64 runner avoids the 15-20x QEMU emulation penalty.
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
       - name: Verify release version
@@ -86,13 +91,9 @@ jobs:
         run: |
           VERSION="v$(jq -r .version driver.json)"
           test "$VERSION" = "${GITHUB_REF_NAME}"
-      - name: Enable ARM64 emulation
+      - name: Build Remote Two/3 package natively on ARM64
         run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system-arm binfmt-support qemu-user-static
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-      - name: Build Remote Two/3 package
-        run: |
+          test "$(uname -m)" = "aarch64"
           docker run --rm --platform=linux/arm64/v8 \
             --user="$(id -u):$(id -g)" \
             -v "${GITHUB_WORKSPACE}:/workspace" \

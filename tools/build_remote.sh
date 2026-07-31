@@ -10,7 +10,7 @@ case "$HOST_ARCH" in
   aarch64|arm64) ;;
   *)
     echo "Remote packages must be built in an ARM64 runtime. Current runtime: $HOST_ARCH" >&2
-    echo "Use the included GitHub Actions workflow or the official r2-pyinstaller image with ARM64 emulation." >&2
+    echo "Use the included native ARM64 GitHub Actions workflow or run the official r2-pyinstaller image on an ARM64 host." >&2
     exit 2
     ;;
 esac

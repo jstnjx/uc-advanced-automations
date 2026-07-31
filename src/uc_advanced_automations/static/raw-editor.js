@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.0 */
+/* Advanced Automations v1.0.1 */
 
 function openRawEditor() {
   const automation = selectedAutomation();

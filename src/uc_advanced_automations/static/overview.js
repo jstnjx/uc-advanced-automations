@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.0 */
+/* Advanced Automations v1.0.1 */
 
 function describeValue(value, fallback = "any value") {
   if (value === null || value === undefined || value === "") return fallback;
