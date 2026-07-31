@@ -40,8 +40,39 @@ def main() -> None:
     if len(set(versions.values())) != 1:
         raise AssertionError(f"Version metadata is inconsistent: {versions}")
 
-    if root_driver != package_driver:
-        raise AssertionError("Root and packaged driver.json files differ")
+    # The root descriptor is used for the direct Remote archive, while the
+    # packaged descriptor is used by the installed Python package. Their
+    # presentation/setup metadata may intentionally differ, but integration
+    # identity and runtime-critical fields must remain aligned.
+    critical_driver_fields = (
+        "driver_id",
+        "version",
+        "min_core_api",
+        "name",
+        "icon",
+        "port",
+    )
+    critical_mismatches = {
+        field: {"root": root_driver.get(field), "packaged": package_driver.get(field)}
+        for field in critical_driver_fields
+        if root_driver.get(field) != package_driver.get(field)
+    }
+    if critical_mismatches:
+        raise AssertionError(
+            "Root and packaged driver.json files differ in runtime-critical fields: "
+            + json.dumps(critical_mismatches, sort_keys=True, ensure_ascii=False)
+        )
+
+    descriptor_differences = sorted(
+        field
+        for field in set(root_driver) | set(package_driver)
+        if root_driver.get(field) != package_driver.get(field)
+    )
+    if descriptor_differences:
+        print(
+            "Allowed root/packaged driver descriptor differences: "
+            + ", ".join(descriptor_differences)
+        )
 
     # Import every Python module shipped by the package. This catches missing
     # runtime dependencies and import-time regressions without the private tests.

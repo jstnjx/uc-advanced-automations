@@ -1,13 +1,13 @@
 {
   "driver_id": "advanced_automations",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "min_core_api": "0.35.0",
   "name": {
     "en": "Advanced Automations"
   },
   "icon": "custom:advanced-automations.png",
   "description": {
-    "en": "Build reliable local automations with scheduled and entity triggers, visual sequences, explicit waits, retries, parallel branches, rollback, persistent run history, revisions, blueprints and raw JSON editing."
+    "en": "Build local automations."
   },
   "port": 9090,
   "developer": {

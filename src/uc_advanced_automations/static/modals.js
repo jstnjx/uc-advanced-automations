@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.2 */
+/* Advanced Automations v1.0.3 */
 
 function showNotice(message, type = "success", timeout = 4500) {
   const notice = $("notice");
