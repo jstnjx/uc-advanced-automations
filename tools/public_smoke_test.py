@@ -7,6 +7,7 @@ import importlib
 import json
 import pkgutil
 import re
+import struct
 import sys
 import tomllib
 from pathlib import Path
@@ -24,6 +25,20 @@ from uc_advanced_automations.models import Automation, Settings  # noqa: E402
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def png_size(path: Path) -> tuple[int, int]:
+    header = path.read_bytes()[:24]
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        raise AssertionError(f"Not a readable PNG: {path}")
+    return struct.unpack(">II", header[16:24])
+
+
+def driver_icon_path(base: Path, descriptor: dict) -> Path:
+    icon_reference = descriptor.get("icon")
+    if not isinstance(icon_reference, str) or not icon_reference.startswith("custom:"):
+        raise AssertionError("driver.json icon must use a custom:<filename> reference")
+    return base / icon_reference.removeprefix("custom:")
 
 
 def main() -> None:
@@ -73,6 +88,19 @@ def main() -> None:
             "Allowed root/packaged driver descriptor differences: "
             + ", ".join(descriptor_differences)
         )
+
+    for label, icon_path in (
+        ("root", driver_icon_path(ROOT, root_driver)),
+        ("packaged", driver_icon_path(PACKAGE, package_driver)),
+    ):
+        if not icon_path.is_file():
+            raise AssertionError(f"Missing {label} driver metadata icon: {icon_path}")
+        dimensions = png_size(icon_path)
+        if dimensions != (90, 90):
+            raise AssertionError(
+                f"{label.capitalize()} driver metadata icon must be 90x90, got "
+                f"{dimensions[0]}x{dimensions[1]}: {icon_path}"
+            )
 
     # Import every Python module shipped by the package. This catches missing
     # runtime dependencies and import-time regressions without the private tests.

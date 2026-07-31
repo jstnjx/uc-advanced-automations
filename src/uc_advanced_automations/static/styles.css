@@ -8,43 +8,43 @@
   -webkit-mask: var(--mi-url) center / contain no-repeat;
   mask: var(--mi-url) center / contain no-repeat;
 }
-.mi-add { --mi-url: url("/static/icons/add.svg?v=1.0.7"); }
-.mi-delete { --mi-url: url("/static/icons/delete.svg?v=1.0.7"); }
-.mi-edit { --mi-url: url("/static/icons/edit.svg?v=1.0.7"); }
-.mi-play_arrow { --mi-url: url("/static/icons/play_arrow.svg?v=1.0.7"); }
-.mi-refresh { --mi-url: url("/static/icons/refresh.svg?v=1.0.7"); }
-.mi-settings { --mi-url: url("/static/icons/settings.svg?v=1.0.7"); }
-.mi-upload_file { --mi-url: url("/static/icons/upload_file.svg?v=1.0.7"); }
-.mi-share { --mi-url: url("/static/icons/share.svg?v=1.0.7"); }
-.mi-code { --mi-url: url("/static/icons/code.svg?v=1.0.7"); }
-.mi-save { --mi-url: url("/static/icons/save.svg?v=1.0.7"); }
-.mi-arrow_back { --mi-url: url("/static/icons/arrow_back.svg?v=1.0.7"); }
-.mi-arrow_forward { --mi-url: url("/static/icons/arrow_forward.svg?v=1.0.7"); }
-.mi-expand_more { --mi-url: url("/static/icons/expand_more.svg?v=1.0.7"); }
-.mi-close { --mi-url: url("/static/icons/close.svg?v=1.0.7"); }
-.mi-filter_list { --mi-url: url("/static/icons/filter_list.svg?v=1.0.7"); }
-.mi-search { --mi-url: url("/static/icons/search.svg?v=1.0.7"); }
-.mi-drag_indicator { --mi-url: url("/static/icons/drag_indicator.svg?v=1.0.7"); }
-.mi-check { --mi-url: url("/static/icons/check.svg?v=1.0.7"); }
-.mi-content_copy { --mi-url: url("/static/icons/content_copy.svg?v=1.0.7"); }
-.mi-download { --mi-url: url("/static/icons/download.svg?v=1.0.7"); }
-.mi-visibility { --mi-url: url("/static/icons/visibility.svg?v=1.0.7"); }
-.mi-devices { --mi-url: url("/static/icons/devices.svg?v=1.0.7"); }
-.mi-timer { --mi-url: url("/static/icons/timer.svg?v=1.0.7"); }
-.mi-alt_route { --mi-url: url("/static/icons/alt_route.svg?v=1.0.7"); }
-.mi-hourglass_empty { --mi-url: url("/static/icons/hourglass_empty.svg?v=1.0.7"); }
-.mi-http { --mi-url: url("/static/icons/http.svg?v=1.0.7"); }
-.mi-description { --mi-url: url("/static/icons/description.svg?v=1.0.7"); }
-.mi-select_all { --mi-url: url("/static/icons/select_all.svg?v=1.0.7"); }
-.mi-deselect { --mi-url: url("/static/icons/deselect.svg?v=1.0.7"); }
+.mi-add { --mi-url: url("/static/icons/add.svg?v=1.0.8"); }
+.mi-delete { --mi-url: url("/static/icons/delete.svg?v=1.0.8"); }
+.mi-edit { --mi-url: url("/static/icons/edit.svg?v=1.0.8"); }
+.mi-play_arrow { --mi-url: url("/static/icons/play_arrow.svg?v=1.0.8"); }
+.mi-refresh { --mi-url: url("/static/icons/refresh.svg?v=1.0.8"); }
+.mi-settings { --mi-url: url("/static/icons/settings.svg?v=1.0.8"); }
+.mi-upload_file { --mi-url: url("/static/icons/upload_file.svg?v=1.0.8"); }
+.mi-share { --mi-url: url("/static/icons/share.svg?v=1.0.8"); }
+.mi-code { --mi-url: url("/static/icons/code.svg?v=1.0.8"); }
+.mi-save { --mi-url: url("/static/icons/save.svg?v=1.0.8"); }
+.mi-arrow_back { --mi-url: url("/static/icons/arrow_back.svg?v=1.0.8"); }
+.mi-arrow_forward { --mi-url: url("/static/icons/arrow_forward.svg?v=1.0.8"); }
+.mi-expand_more { --mi-url: url("/static/icons/expand_more.svg?v=1.0.8"); }
+.mi-close { --mi-url: url("/static/icons/close.svg?v=1.0.8"); }
+.mi-filter_list { --mi-url: url("/static/icons/filter_list.svg?v=1.0.8"); }
+.mi-search { --mi-url: url("/static/icons/search.svg?v=1.0.8"); }
+.mi-drag_indicator { --mi-url: url("/static/icons/drag_indicator.svg?v=1.0.8"); }
+.mi-check { --mi-url: url("/static/icons/check.svg?v=1.0.8"); }
+.mi-content_copy { --mi-url: url("/static/icons/content_copy.svg?v=1.0.8"); }
+.mi-download { --mi-url: url("/static/icons/download.svg?v=1.0.8"); }
+.mi-visibility { --mi-url: url("/static/icons/visibility.svg?v=1.0.8"); }
+.mi-devices { --mi-url: url("/static/icons/devices.svg?v=1.0.8"); }
+.mi-timer { --mi-url: url("/static/icons/timer.svg?v=1.0.8"); }
+.mi-alt_route { --mi-url: url("/static/icons/alt_route.svg?v=1.0.8"); }
+.mi-hourglass_empty { --mi-url: url("/static/icons/hourglass_empty.svg?v=1.0.8"); }
+.mi-http { --mi-url: url("/static/icons/http.svg?v=1.0.8"); }
+.mi-description { --mi-url: url("/static/icons/description.svg?v=1.0.8"); }
+.mi-select_all { --mi-url: url("/static/icons/select_all.svg?v=1.0.8"); }
+.mi-deselect { --mi-url: url("/static/icons/deselect.svg?v=1.0.8"); }
 
-.mi-undo { --mi-url: url("/static/icons/undo.svg?v=1.0.7"); }
-.mi-redo { --mi-url: url("/static/icons/redo.svg?v=1.0.7"); }
-.mi-history { --mi-url: url("/static/icons/history.svg?v=1.0.7"); }
-.mi-account_tree { --mi-url: url("/static/icons/account_tree.svg?v=1.0.7"); }
-.mi-compare_arrows { --mi-url: url("/static/icons/compare_arrows.svg?v=1.0.7"); }
-.mi-expand_less { --mi-url: url("/static/icons/expand_less.svg?v=1.0.7"); }
-.mi-restore { --mi-url: url("/static/icons/restore.svg?v=1.0.7"); }
+.mi-undo { --mi-url: url("/static/icons/undo.svg?v=1.0.8"); }
+.mi-redo { --mi-url: url("/static/icons/redo.svg?v=1.0.8"); }
+.mi-history { --mi-url: url("/static/icons/history.svg?v=1.0.8"); }
+.mi-account_tree { --mi-url: url("/static/icons/account_tree.svg?v=1.0.8"); }
+.mi-compare_arrows { --mi-url: url("/static/icons/compare_arrows.svg?v=1.0.8"); }
+.mi-expand_less { --mi-url: url("/static/icons/expand_less.svg?v=1.0.8"); }
+.mi-restore { --mi-url: url("/static/icons/restore.svg?v=1.0.8"); }
 
 :root {
   color-scheme: dark;

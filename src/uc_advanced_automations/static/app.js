@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.7 */
+/* Advanced Automations v1.0.8 */
 
 function setupEvents() {
   $("addAutomation").addEventListener("click", addAutomation);

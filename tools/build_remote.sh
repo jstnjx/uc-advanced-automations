@@ -20,6 +20,30 @@ ARCH="aarch64"
 VERSION="$(python -c 'import json; print(json.load(open("driver.json"))["version"])')"
 NAME="uc-intg-advanced-automations-v${VERSION}-${ARCH}"
 
+# Fail before the expensive PyInstaller build if the Remote metadata icon is invalid.
+python - <<'PY'
+import json
+import pathlib
+import struct
+
+root = pathlib.Path(".")
+metadata = json.loads((root / "driver.json").read_text(encoding="utf-8"))
+icon_reference = metadata.get("icon")
+if not isinstance(icon_reference, str) or not icon_reference.startswith("custom:"):
+    raise SystemExit("driver.json icon must use a custom:<filename> reference")
+icon_path = root / icon_reference.removeprefix("custom:")
+if not icon_path.is_file():
+    raise SystemExit(f"Metadata icon does not exist: {icon_path}")
+header = icon_path.read_bytes()[:24]
+if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+    raise SystemExit(f"Metadata icon is not a readable PNG: {icon_path}")
+width, height = struct.unpack(">II", header[16:24])
+if (width, height) != (90, 90):
+    raise SystemExit(
+        f"Remote metadata icon must be exactly 90x90; got {width}x{height}: {icon_path}"
+    )
+PY
+
 rm -rf build dist artifacts driver.spec
 python -m PyInstaller \
   --clean \
