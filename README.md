@@ -231,13 +231,13 @@ bash ./tools/build_remote.sh aarch64
 The generated archive uses this pattern:
 
 ```text
-uc-intg-advanced-automations-v1.0.5-aarch64.tar.gz
+uc-intg-advanced-automations-v1.0.6-aarch64.tar.gz
 ```
 
 Verify an archive before installation:
 
 ```bash
-bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v1.0.5-aarch64.tar.gz
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v1.0.6-aarch64.tar.gz
 ```
 
 The Python wheel is for external/server deployment and is not a custom-integration archive.
