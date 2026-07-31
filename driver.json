@@ -1,6 +1,6 @@
 {
   "driver_id": "advanced_automations",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "min_core_api": "0.35.0",
   "name": {
     "en": "Advanced Automations"
