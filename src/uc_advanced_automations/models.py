@@ -229,6 +229,9 @@ def validate_step(step: dict[str, Any], path: str = "step") -> None:
                 validate_step(child, f"{path}.{branch}[{index}]")
 
     elif step_type == "wait":
+        wait_type = step.get("wait_type", "condition")
+        if wait_type not in {"condition", "trigger_timeframe"}:
+            raise ValueError(f"{path}.wait_type must be condition or trigger_timeframe")
         validate_condition_group(step, path)
         timeout_ms = step.get("timeout_ms", 30_000)
         interval_ms = step.get("interval_ms", 500)

@@ -45,6 +45,33 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn("Require every condition to match", source)
         self.assertNotIn("AND — all conditions", source)
 
+
+    def test_overview_entity_filters_and_manual_logs_contract(self) -> None:
+        source = APP_JS.read_text(encoding="utf-8")
+        html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
+        self.assertIn('id="automationOverview"', html)
+        self.assertIn('id="editAutomation"', html)
+        self.assertIn('id="automationTimeline"', html)
+        self.assertIn('id="entityDropdownToggle"', html)
+        self.assertIn('id="entityTypeFilters"', html)
+        self.assertIn('id="entityIntegrationFilters"', html)
+        self.assertIn('id="refreshLogs"', html)
+        self.assertIn('id="continuousLogs"', html)
+        self.assertIn("function renderOverview", source)
+        self.assertIn("function entityIntegration", source)
+        self.assertIn("function setContinuousLogPolling", source)
+        self.assertNotIn("setInterval(pollLogs", source.split("async function init()", 1)[1])
+        self.assertIn('window.location.reload();', source)
+        self.assertIn('Deleting automation…', source)
+        self.assertNotIn('A–Z, numbers and underscores', html)
+        self.assertIn('`${labelText} - ${currentText}`', source)
+
+    def test_wait_timeframe_after_trigger_contract(self) -> None:
+        source = APP_JS.read_text(encoding="utf-8")
+        self.assertIn('value: "trigger_timeframe"', source)
+        self.assertIn('Timeframe after trigger', source)
+        self.assertIn('remaining sequence is skipped', source)
+
     def test_diamond_assets_are_used_for_icon_and_favicon(self) -> None:
         html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
         driver = Path("driver.json").read_text(encoding="utf-8")

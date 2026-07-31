@@ -12,6 +12,14 @@ const state = {
   flowStep: 0,
   blueprint: null,
   entitySearch: "",
+  viewMode: "overview",
+  entityDropdownOpen: false,
+  entityTypeFilters: new Set(),
+  entityIntegrationFilters: new Set(),
+  knownEntityTypes: new Set(),
+  knownEntityIntegrations: new Set(),
+  continuousLogs: false,
+  logPollTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -228,16 +236,33 @@ async function addAutomation() {
   state.selectedId = automation.id;
   state.dirty = true;
   state.flowStep = 0;
+  state.viewMode = "edit";
   renderAll();
   $("automationName").focus();
 }
 
 async function selectAutomation(id) {
-  if (id === state.selectedId) return;
   if (!(await allowDiscardChanges())) return;
   if (state.dirty) await loadAutomations();
   state.selectedId = id;
   state.dirty = false;
+  state.flowStep = 0;
+  state.viewMode = "overview";
+  state.entityDropdownOpen = false;
+  renderAll();
+}
+
+async function showAutomationOverview() {
+  if (!(await allowDiscardChanges())) return;
+  if (state.dirty) await loadAutomations();
+  state.viewMode = "overview";
+  state.entityDropdownOpen = false;
+  renderAll();
+}
+
+function editCurrentAutomation() {
+  if (!selectedAutomation()) return;
+  state.viewMode = "edit";
   state.flowStep = 0;
   renderAll();
 }
@@ -338,7 +363,7 @@ function validateFlowStep(step) {
   if (step === 0) {
     if (!automation.name?.trim()) errors.push({ field: "name", msg: "Name is required" });
     if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command || "")) {
-      errors.push({ field: "command", msg: "Remote command must use A–Z, numbers and underscores" });
+      errors.push({ field: "command", msg: "Remote command has an invalid format" });
     }
   }
   if (step === 1) {
@@ -376,19 +401,78 @@ function entityUsage(automation) {
   return new Set(collectReferencedEntityIds(automation));
 }
 
+function entityIntegration(entity) {
+  const value = entity?.integration_name ?? entity?.integration_id ?? entity?.integration;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    return localizedName(value.name, value.id || value.driver_id || "Unknown integration");
+  }
+  return "Unknown integration";
+}
+
+function syncEntityFilterOptions() {
+  const types = new Set(state.entities.map((entity) => String(entity.entity_type || "entity")));
+  const integrations = new Set(state.entities.map(entityIntegration));
+  for (const type of types) {
+    if (!state.knownEntityTypes.has(type)) state.entityTypeFilters.add(type);
+    state.knownEntityTypes.add(type);
+  }
+  for (const integration of integrations) {
+    if (!state.knownEntityIntegrations.has(integration)) state.entityIntegrationFilters.add(integration);
+    state.knownEntityIntegrations.add(integration);
+  }
+}
+
+function filteredEntityOptions() {
+  const query = String(state.entitySearch || "").trim().toLowerCase();
+  return state.entities.filter((entity) => {
+    const type = String(entity.entity_type || "entity");
+    const integration = entityIntegration(entity);
+    const haystack = `${displayName(entity)} ${entity.entity_id || ""}`.toLowerCase();
+    return state.entityTypeFilters.has(type)
+      && state.entityIntegrationFilters.has(integration)
+      && (!query || haystack.includes(query));
+  });
+}
+
+function renderFilterCheckboxes(containerId, values, selectedSet) {
+  const container = $(containerId);
+  container.replaceChildren();
+  [...values].sort((a, b) => a.localeCompare(b)).forEach((value) => {
+    const label = document.createElement("label");
+    label.className = "filter-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selectedSet.has(value);
+    input.addEventListener("change", () => {
+      if (input.checked) selectedSet.add(value);
+      else selectedSet.delete(value);
+      renderEntitySelection();
+    });
+    const text = document.createElement("span");
+    text.textContent = value;
+    label.append(input, text);
+    container.append(label);
+  });
+}
+
 function renderEntitySelection() {
   const automation = selectedAutomation();
   if (!automation) return;
+  syncEntityFilterOptions();
   const container = $("automationEntities");
   container.replaceChildren();
   const selected = new Set(automation.entity_ids || []);
   const used = entityUsage(automation);
-  const query = String(state.entitySearch || "").trim().toLowerCase();
-  const entities = state.entities.filter((entity) => {
-    const haystack = `${displayName(entity)} ${entity.entity_type || ""} ${entity.entity_id || ""}`.toLowerCase();
-    return !query || haystack.includes(query);
-  });
+  const entities = filteredEntityOptions();
   $("selectedEntityCount").textContent = `${selected.size} selected`;
+  $("entityDropdownSummary").textContent = selected.size
+    ? `${selected.size} entit${selected.size === 1 ? "y" : "ies"} selected`
+    : "Select entities…";
+  $("entityDropdownPanel").classList.toggle("hidden", !state.entityDropdownOpen);
+  $("entityDropdownToggle").setAttribute("aria-expanded", String(state.entityDropdownOpen));
+  renderFilterCheckboxes("entityTypeFilters", state.knownEntityTypes, state.entityTypeFilters);
+  renderFilterCheckboxes("entityIntegrationFilters", state.knownEntityIntegrations, state.entityIntegrationFilters);
 
   if (!state.entities.length) {
     const empty = document.createElement("div");
@@ -400,14 +484,14 @@ function renderEntitySelection() {
   if (!entities.length) {
     const empty = document.createElement("div");
     empty.className = "steps-empty wide-empty";
-    empty.textContent = "No entities match this search.";
+    empty.textContent = "No entities match the selected filters.";
     container.append(empty);
     return;
   }
 
   entities.forEach((entity) => {
     const label = document.createElement("label");
-    label.className = `entity-selection-card${selected.has(entity.entity_id) ? " selected" : ""}`;
+    label.className = `entity-dropdown-option${selected.has(entity.entity_id) ? " selected" : ""}`;
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = selected.has(entity.entity_id);
@@ -427,35 +511,18 @@ function renderEntitySelection() {
       else next.delete(entity.entity_id);
       automation.entity_ids = [...next];
       markDirty();
-      renderEditor();
+      renderEntitySelection();
     });
     const content = document.createElement("span");
-    content.className = "entity-selection-content";
-    const top = document.createElement("span");
-    top.className = "entity-selection-name";
+    content.className = "entity-option-content";
     const name = document.createElement("strong");
     name.textContent = displayName(entity);
-    const badges = document.createElement("span");
-    badges.className = "entity-badges";
-    const type = document.createElement("span");
-    type.textContent = entity.entity_type || "entity";
-    badges.append(type);
-    if (isSensor(entity)) {
-      const readOnly = document.createElement("span");
-      readOnly.className = "read-only-badge";
-      readOnly.textContent = "Read-only";
-      badges.append(readOnly);
-    }
-    if (inUse) {
-      const usage = document.createElement("span");
-      usage.className = "in-use-badge";
-      usage.textContent = "In use";
-      badges.append(usage);
-    }
-    top.append(name, badges);
-    const id = document.createElement("small");
-    id.textContent = entity.entity_id;
-    content.append(top, id);
+    const metadata = document.createElement("small");
+    const tags = [entity.entity_type || "entity", entityIntegration(entity)];
+    if (isSensor(entity)) tags.push("read-only");
+    if (inUse) tags.push("in use");
+    metadata.textContent = `${tags.join(" · ")} · ${entity.entity_id}`;
+    content.append(name, metadata);
     label.append(input, content);
     container.append(label);
   });
@@ -469,16 +536,144 @@ function renderTriggerModeHelp() {
     : "The automation starts as soon as any enabled trigger matches.";
 }
 
+function describeValue(value, fallback = "any value") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return valueToInput(value);
+}
+
+function describeTrigger(trigger) {
+  const entity = findEntity(trigger.entity_id);
+  const name = displayName(entity || { entity_id: trigger.entity_id || "Unselected entity" });
+  const attribute = trigger.attribute || "state";
+  const from = describeValue(trigger.from_value);
+  const to = describeValue(trigger.to_value);
+  if (trigger.from_value == null && trigger.to_value == null) return `${name} · ${attribute} changes`;
+  if (trigger.from_value == null) return `${name} · ${attribute} becomes ${to}`;
+  if (trigger.to_value == null) return `${name} · ${attribute} changes from ${from}`;
+  return `${name} · ${attribute}: ${from} → ${to}`;
+}
+
+function describeConditionGroup(step) {
+  const count = (step.conditions || []).length;
+  const behavior = step.mode === "any" ? "any condition" : "every condition";
+  return `${count} ${count === 1 ? "condition" : "conditions"}; require ${behavior}`;
+}
+
+function describeStep(step) {
+  if (step.type === "command") {
+    const entity = findEntity(step.entity_id);
+    return `Control ${displayName(entity || { entity_id: step.entity_id || "an entity" })}: ${step.cmd_id || "command not selected"}`;
+  }
+  if (step.type === "delay") return `Delay for ${Number(step.milliseconds || 0) / 1000} seconds`;
+  if (step.type === "condition") return `Choose a branch using ${describeConditionGroup(step)}`;
+  if (step.type === "wait") {
+    if (step.wait_type === "trigger_timeframe") {
+      return `For ${Number(step.timeout_ms || 0) / 1000} seconds after the trigger, stop if ${describeConditionGroup(step)} matches; otherwise continue`;
+    }
+    return `Wait up to ${Number(step.timeout_ms || 0) / 1000} seconds until ${describeConditionGroup(step)} matches`;
+  }
+  if (step.type === "http") return `${String(step.method || "POST").toUpperCase()} ${step.url || "endpoint not configured"}`;
+  if (step.type === "log") return `Write ${step.level || "info"} log: ${step.message || "message not configured"}`;
+  return stepLabel(step.type);
+}
+
+function appendTimelineItem(container, title, detail, kind = "step", depth = 0) {
+  const item = document.createElement("article");
+  item.className = `timeline-item ${kind}`;
+  item.style.setProperty("--timeline-depth", String(depth));
+  const marker = document.createElement("span");
+  marker.className = "timeline-marker";
+  const content = document.createElement("div");
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const text = document.createElement("p");
+  text.textContent = detail;
+  content.append(heading, text);
+  item.append(marker, content);
+  container.append(item);
+}
+
+function appendSequenceTimeline(container, steps, depth = 0, prefix = "") {
+  (steps || []).forEach((step, index) => {
+    const label = `${prefix}${index + 1}. ${stepLabel(step.type)}`;
+    appendTimelineItem(container, label, describeStep(step), step.type, depth);
+    if (step.type === "condition") {
+      if ((step.then || []).length) {
+        appendTimelineItem(container, "Then branch", "Runs when the condition group matches.", "branch", depth + 1);
+        appendSequenceTimeline(container, step.then, depth + 2, "T");
+      }
+      if ((step.else || []).length) {
+        appendTimelineItem(container, "Else branch", "Runs when the condition group does not match.", "branch", depth + 1);
+        appendSequenceTimeline(container, step.else, depth + 2, "E");
+      }
+    }
+  });
+}
+
+function renderOverview(automation) {
+  $("overviewTitle").textContent = automation.name || "Untitled automation";
+  $("overviewDescription").textContent = automation.description || "No description provided.";
+  const status = $("overviewStatus");
+  status.textContent = automation.enabled === false ? "Disabled" : "Enabled";
+  status.className = `overview-status${automation.enabled === false ? " disabled" : ""}`;
+
+  const metrics = $("overviewMetrics");
+  metrics.replaceChildren();
+  const selectedCount = (automation.entity_ids || []).length;
+  const triggerCount = (automation.triggers || []).filter((trigger) => trigger.enabled !== false).length;
+  const values = [
+    ["Run mode", automation.mode || "single"],
+    ["Remote command", automation.command_enabled === false ? "Not exposed" : automation.command || "Not configured"],
+    ["Entities", String(selectedCount)],
+    ["Triggers", String(triggerCount)],
+  ];
+  values.forEach(([label, value]) => {
+    const card = document.createElement("div");
+    const small = document.createElement("span");
+    small.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    card.append(small, strong);
+    metrics.append(card);
+  });
+
+  const timeline = $("automationTimeline");
+  timeline.replaceChildren();
+  const enabledTriggers = (automation.triggers || []).filter((trigger) => trigger.enabled !== false);
+  if (enabledTriggers.length) {
+    const mode = automation.trigger_mode === "all"
+      ? "A changed trigger must match and every configured target state must currently be true."
+      : "Any matching trigger starts the automation.";
+    appendTimelineItem(timeline, "Trigger behavior", mode, "trigger");
+    enabledTriggers.forEach((trigger, index) => appendTimelineItem(timeline, `Trigger ${index + 1}`, describeTrigger(trigger), "trigger", 1));
+  }
+  if (automation.command_enabled !== false) {
+    appendTimelineItem(timeline, "Manual start", `Remote command ${automation.command || "not configured"} or the web interface can start this automation.`, "trigger");
+  } else if (!enabledTriggers.length) {
+    appendTimelineItem(timeline, "No start method", "Enable a trigger or expose a Remote command before using this automation.", "warning");
+  }
+  if ((automation.steps || []).length) appendSequenceTimeline(timeline, automation.steps);
+  else appendTimelineItem(timeline, "No sequence steps", "Edit the automation and add the actions it should perform.", "warning");
+}
+
 function renderEditor() {
   const automation = selectedAutomation();
-  $("emptyState").classList.toggle("hidden", Boolean(automation));
-  $("editor").classList.toggle("hidden", !automation);
+  const hasAutomation = Boolean(automation);
+  const showOverview = hasAutomation && state.viewMode === "overview" && !automation._new;
+  const showEditor = hasAutomation && !showOverview;
+  $("emptyState").classList.toggle("hidden", hasAutomation);
+  $("automationOverview").classList.toggle("hidden", !showOverview);
+  $("editor").classList.toggle("hidden", !showEditor);
   if (!automation) return;
 
   if (!Array.isArray(automation.entity_ids)) automation.entity_ids = collectReferencedEntityIds(automation);
   automation.triggers ||= [];
   automation.steps ||= [];
   automation.trigger_mode ||= "any";
+  if (showOverview) {
+    renderOverview(automation);
+    return;
+  }
   $("editorTitle").textContent = automation.name || "Untitled automation";
   $("automationName").value = automation.name || "";
   $("automationCommand").value = automation.command || "";
@@ -636,7 +831,7 @@ function makeStep(type) {
     case "command": return { type, entity_id: firstEntityId({ commandable: true }), cmd_id: "", params: {} };
     case "delay": return { type, milliseconds: 1000 };
     case "condition": return { type, mode: "all", conditions: [makeCondition("entity")], then: [], else: [] };
-    case "wait": return { type, mode: "all", conditions: [makeCondition("entity")], timeout_ms: 30000, interval_ms: 500 };
+    case "wait": return { type, wait_type: "condition", mode: "all", conditions: [makeCondition("entity")], timeout_ms: 30000, interval_ms: 500 };
     case "http": return { type, method: "POST", url: "http://", headers: {}, body: {}, timeout_seconds: 10, status_min: 200, status_max: 299 };
     case "log": return { type, message: "Automation reached this step", level: "info" };
     default: throw new Error(`Unknown step type: ${type}`);
@@ -767,12 +962,25 @@ function renderStepBody(step) {
     block.append(conditionGroup(step), branchEditor("Then", "then", step.then, step), branchEditor("Else", "else", step.else, step));
     grid.append(block);
   } else if (step.type === "wait") {
+    step.wait_type ||= "condition";
+    const waitType = selectField("Wait behavior", step.wait_type, [
+      { value: "condition", label: "Wait until the condition matches" },
+      { value: "trigger_timeframe", label: "Timeframe after trigger" },
+    ], (value) => { step.wait_type = value; renderEditor(); });
+    waitType.classList.add("wide");
+    const help = document.createElement("div");
+    help.className = "read-only-note wide";
+    help.textContent = step.wait_type === "trigger_timeframe"
+      ? "The timeframe starts when the automation is triggered. If the condition matches before it expires, the remaining sequence is skipped. If it never matches, execution continues after the timeframe."
+      : "Execution pauses here until the condition matches. A timeout is treated as a failed step.";
     const conditions = document.createElement("div");
     conditions.className = "wide";
     conditions.append(conditionGroup(step));
     grid.append(
+      waitType,
+      help,
       conditions,
-      numberField("Timeout (ms)", step.timeout_ms ?? 30000, (value) => { step.timeout_ms = value; }, 1, 86400000),
+      numberField(step.wait_type === "trigger_timeframe" ? "Timeframe after trigger (ms)" : "Timeout (ms)", step.timeout_ms ?? 30000, (value) => { step.timeout_ms = value; }, 1, 86400000),
       numberField("Poll interval (ms)", step.interval_ms ?? 500, (value) => { step.interval_ms = value; }, 100, 60000),
     );
   } else if (step.type === "http") {
@@ -1201,22 +1409,18 @@ function getAttributeValue(entityId, path) {
 }
 
 function attributeField(labelText, entityId, value, onChange) {
-  const label = fieldWrap(labelText);
-  const select = document.createElement("select");
   const options = flattenAttributes(findEntity(entityId)?.attributes || {});
   if (!options.some((item) => item.path === value) && value) options.unshift({ path: value, value: undefined });
   if (!options.length) options.push({ path: value || "state", value: undefined });
-  for (const item of options) {
-    select.append(new Option(item.path, item.path));
-  }
-  select.value = value || options[0].path;
+  const selectedPath = value || options[0].path;
+  const currentValue = getAttributeValue(entityId, selectedPath);
+  const currentText = currentValue === undefined ? "Current value unavailable" : `Current: ${valueToInput(currentValue)}`;
+  const label = fieldWrap(`${labelText} - ${currentText}`);
+  const select = document.createElement("select");
+  for (const item of options) select.append(new Option(item.path, item.path));
+  select.value = selectedPath;
   select.addEventListener("change", () => { onChange(select.value); markDirty(); renderEditor(); });
   label.append(select);
-  const current = document.createElement("small");
-  current.className = "attribute-current";
-  const currentValue = getAttributeValue(entityId, select.value);
-  current.textContent = currentValue === undefined ? "Current value unavailable" : `Current: ${valueToInput(currentValue)}`;
-  label.append(current);
   return label;
 }
 
@@ -1273,7 +1477,7 @@ function validateAutomationDraft(automation) {
   const add = (field, msg) => errors.push({ field, msg });
   if (!automation.name?.trim()) add("name", "Name is required");
   if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command || "")) {
-    add("command", "Remote command must use A–Z, numbers and underscores");
+    add("command", "Remote command has an invalid format");
   }
   const selected = new Set(automation.entity_ids || []);
   collectReferencedEntityIds(automation).forEach((entityId) => {
@@ -1348,7 +1552,8 @@ async function refreshEntities() {
   }
 }
 
-function setSaving(active) {
+function setSaving(active, message = "Saving automation…") {
+  $("savingOverlayText").textContent = message;
   $("savingOverlay").classList.toggle("hidden", !active);
   document.body.classList.toggle("saving", active);
 }
@@ -1386,6 +1591,8 @@ async function saveCurrent() {
     state.automations[index] = saved;
     state.selectedId = saved.id;
     state.dirty = false;
+    state.viewMode = "overview";
+    state.entityDropdownOpen = false;
     renderAll();
     showNotice(refreshMessage(result.response, "Automation saved."));
   } catch (error) {
@@ -1406,18 +1613,14 @@ async function deleteCurrent() {
     danger: true,
   });
   if (!confirmed) return;
+  setSaving(true, "Deleting automation…");
   try {
-    let response = null;
     if (!automation._new) {
-      const result = await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "DELETE", returnResponse: true });
-      response = result.response;
+      await api(`/api/automations/${encodeURIComponent(automation.id)}`, { method: "DELETE" });
     }
-    state.automations = state.automations.filter((item) => item.id !== automation.id);
-    state.selectedId = state.automations[0]?.id || null;
-    state.dirty = false;
-    renderAll();
-    showNotice(response ? refreshMessage(response, "Automation deleted.") : "Automation deleted.");
+    window.location.reload();
   } catch (error) {
+    setSaving(false);
     await showError(error, "Automation could not be deleted");
   }
 }
@@ -1432,7 +1635,6 @@ async function runCurrent() {
   try {
     const result = await api(`/api/automations/${encodeURIComponent(automation.id)}/run`, { method: "POST", body: "{}" });
     showNotice(`Run accepted: ${result.run_id}`);
-    pollLogs();
   } catch (error) {
     await showError(error, "Automation could not be started");
   }
@@ -1449,6 +1651,7 @@ async function loadEntities() {
   try {
     const data = await api("/api/entities");
     state.entities = data.entities;
+    syncEntityFilterOptions();
     state.commandDefinitions.clear();
     if (selectedAutomation()) renderEditor();
   } catch (_) {
@@ -1475,6 +1678,18 @@ async function pollLogs() {
       renderLogs();
     }
   } catch (_) {}
+}
+
+function setContinuousLogPolling(enabled) {
+  state.continuousLogs = Boolean(enabled);
+  if (state.logPollTimer) {
+    clearInterval(state.logPollTimer);
+    state.logPollTimer = null;
+  }
+  if (state.continuousLogs) {
+    pollLogs();
+    state.logPollTimer = setInterval(pollLogs, 2000);
+  }
 }
 
 function renderLogs() {
@@ -1540,7 +1755,7 @@ function settingsResult(message, type) {
 }
 
 async function saveSettings() {
-  setSaving(true);
+  setSaving(true, "Saving settings…");
   try {
     const result = await api("/api/settings", { method: "PUT", body: JSON.stringify(settingsPayload()) });
     settingsResult(result.restart_required ? "Saved. Restart the service to apply the web host or port change." : "Settings saved.", "success");
@@ -1614,6 +1829,7 @@ async function applyRawEditor() {
     state.automations[index] = parsed;
     state.selectedId = parsed.id;
     markDirty();
+    state.viewMode = "edit";
     $("rawEditorDialog").close();
     renderAll();
     showNotice("Raw JSON changes applied. Save the automation to persist them.");
@@ -1830,6 +2046,7 @@ async function createFromBlueprint() {
   state.selectedId = imported.id;
   state.dirty = true;
   state.flowStep = 0;
+  state.viewMode = "edit";
   $("blueprintDialog").close();
   renderAll();
   showNotice("Blueprint imported. Review the four setup steps, then save the automation.");
@@ -1841,10 +2058,18 @@ function setupEvents() {
   $("saveAutomation").addEventListener("click", saveCurrent);
   $("deleteAutomation").addEventListener("click", deleteCurrent);
   $("runAutomation").addEventListener("click", runCurrent);
+  $("overviewBackButton").addEventListener("click", showAutomationOverview);
+  $("editAutomation").addEventListener("click", editCurrentAutomation);
+  $("overviewDelete").addEventListener("click", deleteCurrent);
+  $("overviewRun").addEventListener("click", runCurrent);
+  $("overviewBlueprint").addEventListener("click", () => openBlueprintDialog("export"));
+  $("overviewRawEditor").addEventListener("click", openRawEditor);
   $("settingsButton").addEventListener("click", openSettings);
   $("saveSettings").addEventListener("click", saveSettings);
   $("testConnection").addEventListener("click", testConnection);
-  $("clearLogView").addEventListener("click", () => { state.visibleLogs = []; renderLogs(); });
+  $("refreshLogs").addEventListener("click", pollLogs);
+  $("continuousLogs").addEventListener("change", (event) => setContinuousLogPolling(event.target.checked));
+  $("clearLogView").addEventListener("click", () => { state.visibleLogs = []; state.lastLog = 0; renderLogs(); });
   $("refreshEntity").addEventListener("click", refreshEntities);
   $("addTrigger").addEventListener("click", () => {
     const automation = selectedAutomation();
@@ -1872,6 +2097,10 @@ function setupEvents() {
   });
   $("flowBack").addEventListener("click", () => setFlowStep(state.flowStep - 1));
   $("flowNext").addEventListener("click", continueFlow);
+  $("entityDropdownToggle").addEventListener("click", () => {
+    state.entityDropdownOpen = !state.entityDropdownOpen;
+    renderEntitySelection();
+  });
   $("entitySearch").addEventListener("input", (event) => {
     state.entitySearch = event.target.value;
     renderEntitySelection();
@@ -1879,7 +2108,9 @@ function setupEvents() {
   $("selectAllEntities").addEventListener("click", () => {
     const automation = selectedAutomation();
     if (!automation) return;
-    automation.entity_ids = state.entities.map((entity) => entity.entity_id);
+    const next = new Set(automation.entity_ids || []);
+    filteredEntityOptions().forEach((entity) => next.add(entity.entity_id));
+    automation.entity_ids = [...next];
     markDirty();
     renderEditor();
   });
@@ -1915,6 +2146,11 @@ function setupEvents() {
       blueprintResult(`Unable to read blueprint: ${error.message}`, "error");
     }
   });
+  document.addEventListener("click", (event) => {
+    if (!state.entityDropdownOpen || event.target.closest(".entity-picker")) return;
+    state.entityDropdownOpen = false;
+    renderEntitySelection();
+  });
   bindEditorFields();
 }
 
@@ -1922,12 +2158,11 @@ async function init() {
   setupEvents();
   try {
     await loadAutomations();
-    await Promise.allSettled([loadEntities(), pollStatus(), pollLogs()]);
+    await Promise.allSettled([loadEntities(), pollStatus()]);
   } catch (error) {
     await showError(error, "Advanced Automations could not be loaded");
   }
   setInterval(pollStatus, 5000);
-  setInterval(pollLogs, 2000);
 }
 
 init();

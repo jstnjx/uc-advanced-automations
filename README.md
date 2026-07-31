@@ -6,13 +6,14 @@ The integration combines entity-state triggers, conditions, commands, delays, HT
 
 ## Features
 
+- Automation overview with a read-only trigger and sequence timeline
 - Four-step automation editor:
   1. Automation details
   2. Entity selection
   3. Trigger definition
   4. Sequence definition
 - Drag-and-drop trigger and sequence ordering
-- Nested if/else sequences and wait-until steps
+- Nested if/else sequences, wait-until steps and post-trigger timeframes
 - Any-trigger and all-target-states trigger behavior with plain-language descriptions
 - Single, Replace and Parallel run modes
 - Read-only sensor support for triggers and conditions
@@ -21,7 +22,7 @@ The integration combines entity-state triggers, conditions, commands, delays, HT
 - Blueprint export, import and entity mapping for sharing automations
 - Structured validation dialogs instead of browser alerts
 - Saving overlay with a blurred backdrop
-- Run history in the web interface
+- Manual run-log refresh with optional continuous polling
 - A **Last automation triggered** sensor entity
 - Persistent Remote API-key creation during integration setup
 
@@ -48,7 +49,7 @@ Configure:
 
 ### 2. Choose entities
 
-Select the entities available to the automation. Existing configurations created before v0.5.0 are migrated automatically by collecting their referenced entities.
+Select the entities available to the automation from a dropdown containing all entities reported by the Remote. The dropdown can be searched and filtered with checkboxes by entity type and source integration. Existing configurations created before v0.6.0 are migrated automatically by collecting their referenced entities.
 
 Sensors remain selectable for triggers and conditions but are never offered as command targets.
 
@@ -68,11 +69,20 @@ Available steps:
 - **Entity:** send a supported command to a controllable entity
 - **Delay:** pause execution
 - **If / else:** branch using entity or time conditions
-- **Wait until:** pause until conditions match or a timeout occurs
+- **Wait until:** pause until conditions match, or monitor a recovery condition for a fixed timeframe measured from the trigger
 - **HTTP request:** call an HTTP or HTTPS endpoint
 - **Log message:** write a diagnostic run-log entry
 
 Root steps, triggers and nested branch steps support drag-and-drop ordering.
+
+
+## Automation overview
+
+Selecting an existing automation opens a read-only overview instead of immediately entering the editor. The overview shows enabled state, run mode, Remote command exposure, selected entities, triggers and a timeline of the complete sequence. Select **Edit** to open the four-step setup flow.
+
+## Run log refresh
+
+The web interface does not poll logs continuously by default. Select **Refresh** to query new entries on demand, or enable **Continuous refresh** to poll every two seconds until the switch is disabled or the page is closed.
 
 ## Automation blueprints
 
@@ -146,13 +156,13 @@ bash ./tools/build_remote.sh aarch64
 The generated archive uses this pattern:
 
 ```text
-uc-intg-advanced-automations-v0.5.0-aarch64.tar.gz
+uc-intg-advanced-automations-v0.6.0-aarch64.tar.gz
 ```
 
 Verify an archive before installation:
 
 ```bash
-bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v0.5.0-aarch64.tar.gz
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v0.6.0-aarch64.tar.gz
 ```
 
 The Python wheel is for external/server deployment and is not a custom integration archive.

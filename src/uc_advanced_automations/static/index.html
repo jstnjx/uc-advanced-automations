@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Advanced Automations</title>
-  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.5.0">
-  <link rel="stylesheet" href="/static/styles.css?v=0.5.0">
+  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.6.0">
+  <link rel="stylesheet" href="/static/styles.css?v=0.6.0">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="brand-lockup">
-        <img src="/static/integration-icon.png?v=0.5.0" alt="" class="brand-icon">
+        <img src="/static/integration-icon.png?v=0.6.0" alt="" class="brand-icon">
         <h1>Advanced Automations</h1>
       </div>
       <div class="top-actions">
@@ -38,13 +38,42 @@
 
       <section class="workspace panel">
         <div id="emptyState" class="empty-state">
-          <img class="empty-icon" src="/static/integration-icon.png?v=0.5.0" alt="">
+          <img class="empty-icon" src="/static/integration-icon.png?v=0.6.0" alt="">
           <h2>Create an automation</h2>
           <p>Combine entity triggers, conditions, commands and service calls</p>
           <div class="empty-actions">
             <button id="emptyAdd" class="button primary" type="button">New automation</button>
             <button id="emptyBlueprint" class="button secondary" type="button">Import blueprint</button>
           </div>
+        </div>
+
+        <div id="automationOverview" class="hidden">
+          <div class="overview-head">
+            <div>
+              <div class="overview-title-row">
+                <h2 id="overviewTitle">Automation</h2>
+                <span id="overviewStatus" class="overview-status">Enabled</span>
+              </div>
+              <p id="overviewDescription">Automation overview</p>
+            </div>
+            <div class="editor-actions">
+              <button id="overviewBlueprint" class="button ghost" type="button">Blueprint</button>
+              <button id="overviewRawEditor" class="button ghost" type="button">Raw JSON</button>
+              <button id="overviewDelete" class="button danger ghost" type="button">Delete</button>
+              <button id="overviewRun" class="button secondary" type="button">Run</button>
+              <button id="editAutomation" class="button primary" type="button">Edit</button>
+            </div>
+          </div>
+          <div id="overviewMetrics" class="overview-metrics"></div>
+          <section class="overview-section">
+            <div class="overview-section-head">
+              <div>
+                <h3>Automation flow</h3>
+                <p>A read-only timeline of how this automation starts and what it does.</p>
+              </div>
+            </div>
+            <div id="automationTimeline" class="automation-timeline"></div>
+          </section>
         </div>
 
         <div id="editor" class="hidden">
@@ -54,6 +83,7 @@
               <p>Configure the automation in four guided steps.</p>
             </div>
             <div class="editor-actions">
+              <button id="overviewBackButton" class="button ghost" type="button">Overview</button>
               <button id="blueprintButton" class="button ghost" type="button">Blueprint</button>
               <button id="rawEditorButton" class="button ghost" type="button">Raw JSON</button>
               <button id="deleteAutomation" class="button danger ghost" type="button">Delete</button>
@@ -84,7 +114,6 @@
               <label class="field">
                 <span>Remote command</span>
                 <input id="automationCommand" type="text" maxlength="64" placeholder="MOVIE_NIGHT">
-                <small>A–Z, numbers and underscores</small>
               </label>
               <label class="field">
                 <span>Run mode</span>
@@ -118,16 +147,35 @@
                 <p>Only selected entities are available in triggers, conditions and sequence steps.</p>
               </div>
               <div class="section-actions">
-                <button id="selectAllEntities" class="button ghost" type="button">Select all</button>
+                <button id="selectAllEntities" class="button ghost" type="button">Select filtered</button>
                 <button id="clearEntitySelection" class="button ghost" type="button">Clear unused</button>
               </div>
             </div>
-            <label class="field entity-search-field">
-              <span>Search entities</span>
-              <input id="entitySearch" type="search" placeholder="Search by name, type or identifier">
-            </label>
             <div class="selection-summary"><strong id="selectedEntityCount">0 selected</strong><span>Sensors are read-only and remain available for triggers and conditions.</span></div>
-            <div id="automationEntities" class="entity-selection-grid"></div>
+            <div class="entity-picker">
+              <button id="entityDropdownToggle" class="entity-dropdown-toggle" type="button" aria-expanded="false">
+                <span>Choose entities</span>
+                <strong id="entityDropdownSummary">Select entities…</strong>
+                <span class="dropdown-chevron">⌄</span>
+              </button>
+              <div id="entityDropdownPanel" class="entity-dropdown-panel hidden">
+                <label class="field entity-search-field">
+                  <span>Search entities</span>
+                  <input id="entitySearch" type="search" placeholder="Search by name or identifier">
+                </label>
+                <div class="entity-filter-grid">
+                  <fieldset class="entity-filter-group">
+                    <legend>Entity type</legend>
+                    <div id="entityTypeFilters" class="entity-filter-options"></div>
+                  </fieldset>
+                  <fieldset class="entity-filter-group">
+                    <legend>Integration</legend>
+                    <div id="entityIntegrationFilters" class="entity-filter-options"></div>
+                  </fieldset>
+                </div>
+                <div id="automationEntities" class="entity-dropdown-options"></div>
+              </div>
+            </div>
           </section>
 
           <section class="flow-panel hidden" data-flow-panel="2">
@@ -177,7 +225,15 @@
           <h2>Run log</h2>
           <p>Latest automation activity</p>
         </div>
-        <button id="clearLogView" class="button ghost" type="button">Clear view</button>
+        <div class="log-actions">
+          <label class="switch-row compact-switch">
+            <input id="continuousLogs" type="checkbox">
+            <span class="switch"></span>
+            <span>Continuous refresh</span>
+          </label>
+          <button id="refreshLogs" class="button secondary" type="button">Refresh</button>
+          <button id="clearLogView" class="button ghost" type="button">Clear view</button>
+        </div>
       </div>
       <div id="logs" class="logs"><div class="log-empty">No runs yet.</div></div>
     </section>
@@ -260,7 +316,7 @@
         <button type="button" data-step-type="command"><strong>Entity</strong><span>Control an entity</span></button>
         <button type="button" data-step-type="delay"><strong>Delay</strong><span>Pause before the next step</span></button>
         <button type="button" data-step-type="condition"><strong>If / else</strong><span>Branch when all or any conditions match</span></button>
-        <button type="button" data-step-type="wait"><strong>Wait until</strong><span>Wait for entity or time conditions</span></button>
+        <button type="button" data-step-type="wait"><strong>Wait until</strong><span>Wait for a condition or enforce a timeframe after the trigger</span></button>
         <button type="button" data-step-type="http"><strong>HTTP request</strong><span>Call a local or remote endpoint</span></button>
         <button type="button" data-step-type="log"><strong>Log message</strong><span>Add a diagnostic entry</span></button>
       </div>
@@ -336,9 +392,9 @@
   </dialog>
 
   <div id="savingOverlay" class="saving-overlay hidden" role="status" aria-live="polite" aria-busy="true">
-    <div class="saving-card"><span class="loading-spinner"></span><strong>Saving automation…</strong></div>
+    <div class="saving-card"><span class="loading-spinner"></span><strong id="savingOverlayText">Saving automation…</strong></div>
   </div>
 
-  <script src="/static/app.js?v=0.5.0" defer></script>
+  <script src="/static/app.js?v=0.6.0" defer></script>
 </body>
 </html>

@@ -129,6 +129,76 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         while self.engine.running_count():
             await asyncio.sleep(0.01)
 
+    async def test_trigger_timeframe_stops_remaining_steps_when_condition_matches(self):
+        automation = Automation(
+            name="Pause guard",
+            command="PAUSE_GUARD",
+            steps=[
+                {
+                    "type": "wait",
+                    "wait_type": "trigger_timeframe",
+                    "mode": "all",
+                    "conditions": [
+                        {
+                            "kind": "entity",
+                            "entity_id": "switch.test",
+                            "attribute": "state",
+                            "operator": "eq",
+                            "value": "ON",
+                        }
+                    ],
+                    "timeout_ms": 250,
+                    "interval_ms": 100,
+                },
+                {"type": "log", "message": "after timeframe"},
+            ],
+        )
+
+        async def recover():
+            await asyncio.sleep(0.05)
+            self.core.entities["switch.test"]["attributes"]["state"] = "ON"
+
+        asyncio.create_task(recover())
+        result = self.engine.start(automation, "state trigger")
+        self.assertTrue(result.accepted)
+        while self.engine.running_count():
+            await asyncio.sleep(0.01)
+        messages = [item["message"] for item in self.engine.logs_after(0)]
+        self.assertTrue(any("remaining sequence skipped" in message for message in messages))
+        self.assertNotIn("after timeframe", messages)
+
+    async def test_trigger_timeframe_continues_when_condition_does_not_match(self):
+        automation = Automation(
+            name="Pause guard",
+            command="PAUSE_GUARD_TIMEOUT",
+            steps=[
+                {
+                    "type": "wait",
+                    "wait_type": "trigger_timeframe",
+                    "mode": "all",
+                    "conditions": [
+                        {
+                            "kind": "entity",
+                            "entity_id": "switch.test",
+                            "attribute": "state",
+                            "operator": "eq",
+                            "value": "ON",
+                        }
+                    ],
+                    "timeout_ms": 120,
+                    "interval_ms": 100,
+                },
+                {"type": "log", "message": "after timeframe"},
+            ],
+        )
+        result = self.engine.start(automation, "state trigger")
+        self.assertTrue(result.accepted)
+        while self.engine.running_count():
+            await asyncio.sleep(0.01)
+        messages = [item["message"] for item in self.engine.logs_after(0)]
+        self.assertIn("after timeframe", messages)
+        self.assertTrue(any("trigger timeframe elapsed" in message for message in messages))
+
     async def test_replace_mode_cancels_active_run_and_starts_new_run(self):
         automation = Automation(
             name="Replace",

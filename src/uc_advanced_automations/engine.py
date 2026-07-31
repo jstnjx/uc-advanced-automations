@@ -21,6 +21,10 @@ _LOG = logging.getLogger(__name__)
 _MISSING = object()
 
 
+class _AutomationStopped(Exception):
+    """Internal signal used to stop the remaining sequence without marking the run failed."""
+
+
 @dataclass(slots=True)
 class LogEntry:
     sequence: int
@@ -118,8 +122,12 @@ class AutomationEngine:
 
     async def _run(self, automation: Automation, run_id: str, source: str) -> None:
         self._write_log("info", run_id, automation.id, f"Started from {source}")
+        triggered_at = asyncio.get_running_loop().time()
         try:
-            await self._execute_steps(automation.steps, automation, run_id)
+            await self._execute_steps(automation.steps, automation, run_id, triggered_at)
+        except _AutomationStopped as stopped:
+            self._write_log("info", run_id, automation.id, str(stopped))
+            self._write_log("success", run_id, automation.id, "Completed")
         except asyncio.CancelledError:
             self._write_log("warning", run_id, automation.id, "Cancelled")
             raise
@@ -129,10 +137,16 @@ class AutomationEngine:
         else:
             self._write_log("success", run_id, automation.id, "Completed")
 
-    async def _execute_steps(self, steps: list[dict[str, Any]], automation: Automation, run_id: str) -> None:
+    async def _execute_steps(
+        self,
+        steps: list[dict[str, Any]],
+        automation: Automation,
+        run_id: str,
+        triggered_at: float,
+    ) -> None:
         for index, step in enumerate(steps, start=1):
             try:
-                await self._execute_step(step, automation, run_id, index)
+                await self._execute_step(step, automation, run_id, index, triggered_at)
             except Exception as err:
                 if step.get("continue_on_error", False):
                     self._write_log(
@@ -150,6 +164,7 @@ class AutomationEngine:
         automation: Automation,
         run_id: str,
         index: int,
+        triggered_at: float,
     ) -> None:
         step_type = step["type"]
 
@@ -170,18 +185,42 @@ class AutomationEngine:
             result = await self.evaluate_group(step)
             branch_name = "then" if result else "else"
             self._write_log("info", run_id, automation.id, f"Step {index}: condition is {result}")
-            await self._execute_steps(step.get(branch_name, []), automation, run_id)
+            await self._execute_steps(step.get(branch_name, []), automation, run_id, triggered_at)
             return
 
         if step_type == "wait":
             timeout = float(step.get("timeout_ms", 30_000)) / 1000
             interval = float(step.get("interval_ms", 500)) / 1000
+            wait_type = step.get("wait_type", "condition")
+            loop = asyncio.get_running_loop()
+            if wait_type == "trigger_timeframe":
+                deadline = triggered_at + timeout
+                self._write_log(
+                    "info",
+                    run_id,
+                    automation.id,
+                    f"Step {index}: monitor condition for {timeout:g} seconds after trigger",
+                )
+                while loop.time() < deadline:
+                    if await self.evaluate_group(step):
+                        raise _AutomationStopped(
+                            f"Step {index}: timeframe condition matched; remaining sequence skipped"
+                        )
+                    await asyncio.sleep(min(interval, max(0.01, deadline - loop.time())))
+                self._write_log(
+                    "info",
+                    run_id,
+                    automation.id,
+                    f"Step {index}: trigger timeframe elapsed; continuing sequence",
+                )
+                return
+
             self._write_log("info", run_id, automation.id, f"Step {index}: wait until condition")
-            deadline = asyncio.get_running_loop().time() + timeout
+            deadline = loop.time() + timeout
             while True:
                 if await self.evaluate_group(step):
                     return
-                if asyncio.get_running_loop().time() >= deadline:
+                if loop.time() >= deadline:
                     raise TimeoutError(f"Wait condition timed out after {timeout:g} seconds")
                 await asyncio.sleep(interval)
 
