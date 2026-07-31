@@ -81,6 +81,25 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertTrue(Path("advanced-automations.png").is_file())
         self.assertTrue(Path("src/uc_advanced_automations/static/favicon.png").is_file())
 
+    def test_local_material_symbols_weight_200(self) -> None:
+        html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
+        css = Path("src/uc_advanced_automations/static/styles.css").read_text(encoding="utf-8")
+        source = APP_JS.read_text(encoding="utf-8")
+        font = Path("src/uc_advanced_automations/static/material-symbols-outlined.woff2")
+        self.assertTrue(font.is_file())
+        self.assertGreater(font.stat().st_size, 0)
+        self.assertIn('@font-face', css)
+        self.assertIn('font-family: "Material Symbols Outlined"', css)
+        self.assertIn('font-weight: 200', css)
+        self.assertIn('material-symbols-outlined.woff2', css)
+        self.assertIn('class="material-symbols-outlined dropdown-chevron"', html)
+        self.assertIn('chevron_right', html)
+        self.assertIn('function materialSymbol', source)
+        self.assertIn('materialSymbol("chevron_right", "automation-chevron")', source)
+        combined = html + css + source
+        self.assertNotIn('fonts.googleapis.com', combined)
+        self.assertNotIn('fonts.gstatic.com', combined)
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the frontend compatibility test")
     def test_uuid_helper_runs_without_web_crypto(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")

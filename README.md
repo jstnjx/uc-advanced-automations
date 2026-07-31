@@ -49,7 +49,7 @@ Configure:
 
 ### 2. Choose entities
 
-Select the entities available to the automation from a dropdown containing all entities reported by the Remote. The dropdown can be searched and filtered with checkboxes by entity type and source integration. Existing configurations created before v0.6.0 are migrated automatically by collecting their referenced entities.
+Select the entities available to the automation from a dropdown containing all entities reported by the Remote. The dropdown can be searched and filtered with checkboxes by entity type and source integration. Existing configurations created before v0.6.1 are migrated automatically by collecting their referenced entities.
 
 Sensors remain selectable for triggers and conditions but are never offered as command targets.
 
@@ -156,13 +156,13 @@ bash ./tools/build_remote.sh aarch64
 The generated archive uses this pattern:
 
 ```text
-uc-intg-advanced-automations-v0.6.0-aarch64.tar.gz
+uc-intg-advanced-automations-v0.6.1-aarch64.tar.gz
 ```
 
 Verify an archive before installation:
 
 ```bash
-bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v0.6.0-aarch64.tar.gz
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v0.6.1-aarch64.tar.gz
 ```
 
 The Python wheel is for external/server deployment and is not a custom integration archive.

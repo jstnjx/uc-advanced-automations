@@ -24,6 +24,14 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+function materialSymbol(name, className = "") {
+  const icon = document.createElement("span");
+  icon.className = `material-symbols-outlined${className ? ` ${className}` : ""}`;
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = name;
+  return icon;
+}
+
 class ApiError extends Error {
   constructor(message, status = 0, details = []) {
     super(message);
@@ -299,7 +307,7 @@ function renderAutomationList() {
     const commandText = automation.command_enabled !== false ? automation.command : "Background only";
     const logic = triggerCount > 1 ? ` · ${automation.trigger_mode === "all" ? "all states" : "any trigger"}` : "";
     summary.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}${logic}` : commandText;
-    button.append(top, summary);
+    button.append(top, summary, materialSymbol("chevron_right", "automation-chevron"));
     button.addEventListener("click", () => selectAutomation(automation.id));
     list.append(button);
   }
