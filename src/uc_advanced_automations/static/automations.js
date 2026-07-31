@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.6 */
+/* Advanced Automations v1.0.7 */
 
 function newAutomation() {
   const number = state.automations.length + 1;
@@ -336,13 +336,13 @@ function refreshMessage(response, prefix) {
   const status = response.headers.get("X-Entity-Refresh") || "unknown";
   const detail = response.headers.get("X-Entity-Refresh-Message");
   const labels = {
-    refreshed: "Remote commands and pages refreshed automatically.",
-    reloaded: "The integration reloaded and the entity was refreshed.",
-    current: "The entity is already current.",
-    unchanged: "The entity definition was unchanged.",
+    refreshed: "Entities refreshed.",
+    reloaded: "Entities refreshed.",
+    current: "Entities are already current.",
+    unchanged: "Entities are already current.",
     "not-configured": "Add the Advanced Automations entity to the Remote to expose its commands.",
     "api-key-required": "Run integration setup to create the Remote API key.",
-    "refresh-pending": "The integration reload was requested; Remote is still applying the entity definition.",
+    "refresh-pending": "Entities refreshed.",
     failed: detail || "Automatic entity refresh failed.",
   };
   return `${prefix} ${labels[status] || detail || ""}`.trim();

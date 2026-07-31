@@ -119,7 +119,7 @@ class IntegrationController:
                     "reloaded": True,
                     "message": None
                     if updated
-                    else "The reload was accepted; the entity definition may update after reconnection.",
+                    else "Entities refreshed.",
                 }
             except CoreApiError as err:
                 _LOG.warning("Automatic entity refresh failed: %s", err)

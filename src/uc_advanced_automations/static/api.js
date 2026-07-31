@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.6 */
+/* Advanced Automations v1.0.7 */
 
 class ApiError extends Error {
   constructor(message, status = 0, details = []) {

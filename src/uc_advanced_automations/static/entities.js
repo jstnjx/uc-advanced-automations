@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.6 */
+/* Advanced Automations v1.0.7 */
 
 function displayName(entity) {
   if (typeof entity?.name === "string") return entity.name;
@@ -218,9 +218,9 @@ async function refreshEntities() {
   try {
     const result = await api("/api/integration/refresh", { method: "POST", body: "{}" });
     const message = result.message || ({
-      refreshed: "Remote commands and touchscreen pages refreshed.",
-      reloaded: "Integration connection reloaded and entity refreshed.",
-      current: "The entity is already current.",
+      refreshed: "Entities refreshed.",
+      reloaded: "Entities refreshed.",
+      current: "Entities are already current.",
       "not-configured": "Add the Advanced Automations entity to the Remote first.",
     }[result.status] || `Refresh status: ${result.status}`);
     if (result.status === "failed") await showError(new ApiError(message), "entity refresh failed");

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uc-advanced-automations"
-version = "1.0.6"
+version = "1.0.7"
 description = "Advanced conditional automations for Unfolded Circle Remote Two and Remote 3"
 readme = "README.md"
 requires-python = ">=3.11"
