@@ -4,25 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>Advanced Automations</title>
-  <link rel="stylesheet" href="/static/styles.css?v=0.3.7">
+  <title>UC Advanced Automations</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png?v=0.4.0">
+  <link rel="stylesheet" href="/static/styles.css?v=0.4.0">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
-      <div>
-        <div class="eyebrow">UNFOLDED CIRCLE</div>
-        <h1>Advanced Automations</h1>
-        <p id="runtimeTarget" class="runtime-target">Detecting runtime…</p>
+      <div class="brand-lockup">
+        <img src="/static/integration-icon.png?v=0.4.0" alt="" class="brand-icon">
+        <div>
+          <div class="eyebrow">UC</div>
+          <h1>Advanced Automations</h1>
+        </div>
       </div>
       <div class="top-actions">
         <span id="connectionBadge" class="status-badge"><span></span> Checking…</span>
-        <button id="refreshEntity" class="button secondary" type="button">Refresh Remote entity</button>
+        <button id="refreshEntity" class="button secondary" type="button">Refresh UC entity</button>
         <button id="settingsButton" class="button secondary" type="button">Settings</button>
       </div>
     </header>
 
-    <div id="notice" class="notice hidden" role="status"></div>
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 
     <main class="layout">
       <aside class="sidebar panel">
@@ -38,9 +41,9 @@
 
       <section class="workspace panel">
         <div id="emptyState" class="empty-state">
-          <div class="empty-icon">◇</div>
+          <img class="empty-icon" src="/static/integration-icon.png?v=0.4.0" alt="">
           <h2>Create an automation</h2>
-          <p>Build command-driven or background state-change automations with conditional sequences.</p>
+          <p>Combine UC entity triggers, conditions, commands and service calls in one visual flow.</p>
           <button id="emptyAdd" class="button primary" type="button">New automation</button>
         </div>
 
@@ -48,7 +51,7 @@
           <div class="editor-head">
             <div>
               <h2 id="editorTitle">Automation</h2>
-              <p>Run it from a Remote command, an entity state change, or both.</p>
+              <p>Run from a UC command, an entity-state trigger, or both.</p>
             </div>
             <div class="editor-actions">
               <button id="deleteAutomation" class="button danger ghost" type="button">Delete</button>
@@ -57,20 +60,21 @@
             </div>
           </div>
 
-          <div class="form-grid">
+          <div class="form-grid compact-grid">
             <label class="field wide">
               <span>Name</span>
               <input id="automationName" type="text" maxlength="80" placeholder="Movie Night">
             </label>
             <label class="field">
-              <span>Remote command</span>
+              <span>UC command</span>
               <input id="automationCommand" type="text" maxlength="64" placeholder="MOVIE_NIGHT">
               <small>A–Z, numbers and underscores</small>
             </label>
             <label class="field">
               <span>Run mode</span>
               <select id="automationMode">
-                <option value="single">Single — ignore duplicate runs</option>
+                <option value="single">Single — ignore a new run while active</option>
+                <option value="replace">Replace — stop the active run and start again</option>
                 <option value="parallel">Parallel — allow simultaneous runs</option>
               </select>
             </label>
@@ -86,37 +90,40 @@
             <label class="switch-row">
               <input id="automationCommandEnabled" type="checkbox" checked>
               <span class="switch"></span>
-              <span>Expose as Remote command and touchscreen button</span>
+              <span>Expose as a UC command and touchscreen button</span>
             </label>
           </div>
 
-          <div class="sequence-head trigger-head">
-            <div>
-              <h3>Background triggers</h3>
-              <p>Run when an entity attribute changes. Optional from/to values act as filters.</p>
+          <section class="builder-section">
+            <div class="sequence-head trigger-head">
+              <div>
+                <h3>Triggers</h3>
+                <p>Drag to reorder. Select attributes directly from each UC entity.</p>
+              </div>
+              <div class="section-actions">
+                <label class="inline-select">
+                  <span>Logic</span>
+                  <select id="triggerMode">
+                    <option value="any">OR — any trigger may start the automation</option>
+                    <option value="all">AND — all trigger target states must match</option>
+                  </select>
+                </label>
+                <button id="addTrigger" class="button secondary" type="button">Add trigger</button>
+              </div>
             </div>
-            <button id="addTrigger" class="button secondary" type="button">Add state trigger</button>
-          </div>
-          <div id="triggers" class="triggers"></div>
+            <div id="triggers" class="triggers"></div>
+          </section>
 
-          <div class="sequence-head">
-            <div>
-              <h3>Sequence</h3>
-              <p>Steps run from top to bottom. Conditions can contain their own nested steps.</p>
-            </div>
-            <div class="add-menu">
-              <select id="rootStepType" aria-label="Step type">
-                <option value="command">Device command</option>
-                <option value="delay">Delay</option>
-                <option value="condition">If / else</option>
-                <option value="wait">Wait until</option>
-                <option value="http">HTTP request</option>
-                <option value="log">Log message</option>
-              </select>
+          <section class="builder-section">
+            <div class="sequence-head">
+              <div>
+                <h3>Sequence</h3>
+                <p>Drag steps into the required order. Branches can contain nested steps.</p>
+              </div>
               <button id="addRootStep" class="button secondary" type="button">Add step</button>
             </div>
-          </div>
-          <div id="steps" class="steps"></div>
+            <div id="steps" class="steps drop-zone"></div>
+          </section>
         </div>
       </section>
     </main>
@@ -137,18 +144,17 @@
     <form method="dialog" class="dialog-card" id="settingsForm">
       <div class="dialog-head">
         <div>
-          <h2>Connection settings</h2>
-          <p>The same integration runs directly on Remote Two/3 or as an external service.</p>
+          <h2>UC connection settings</h2>
+          <p>The API key is normally created by the UC integration setup flow.</p>
         </div>
         <button class="icon-button" value="cancel" aria-label="Close">×</button>
       </div>
-      <div id="runtimeInfo" class="inline-result"></div>
       <label class="field">
-        <span>Remote Core WebSocket URL</span>
+        <span>UC Core WebSocket URL</span>
         <input id="coreUrl" type="url" placeholder="ws://remote.local/ws" required>
       </label>
       <label class="field">
-        <span>Core API key (setup-managed)</span>
+        <span>UC Core API key</span>
         <input id="apiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep existing key">
         <small id="apiKeyHint"></small>
       </label>
@@ -180,6 +186,44 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=0.3.7" defer></script>
+  <dialog id="messageDialog">
+    <form method="dialog" class="dialog-card message-dialog-card">
+      <div class="dialog-head">
+        <div>
+          <h2 id="messageDialogTitle">Message</h2>
+          <p id="messageDialogText"></p>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+      </div>
+      <ul id="messageDialogDetails" class="validation-list hidden"></ul>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="messageDialogCancel" class="button ghost" value="cancel">Cancel</button>
+        <button id="messageDialogConfirm" class="button primary" value="default">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="stepDialog">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <h2>Add sequence step</h2>
+          <p>Select the action to insert into this sequence.</p>
+        </div>
+        <button id="closeStepDialog" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="step-picker" id="stepPicker">
+        <button type="button" data-step-type="command"><strong>UC command</strong><span>Control a command-capable UC entity</span></button>
+        <button type="button" data-step-type="delay"><strong>Delay</strong><span>Pause before the next step</span></button>
+        <button type="button" data-step-type="condition"><strong>If / else</strong><span>Branch using AND/OR conditions</span></button>
+        <button type="button" data-step-type="wait"><strong>Wait until</strong><span>Wait for entity or time conditions</span></button>
+        <button type="button" data-step-type="http"><strong>HTTP request</strong><span>Call a local or remote endpoint</span></button>
+        <button type="button" data-step-type="log"><strong>Log message</strong><span>Add a diagnostic entry</span></button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/app.js?v=0.4.0" defer></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
-"""Remote REST Core API authentication helpers.
+"""UC REST Core API authentication helpers.
 
-The Remote's short-lived web-configurator PIN is used only to create a
+The UC Remote's short-lived web-configurator PIN is used only to create a
 persistent API key. The PIN is never returned by this module and must never be
 stored in application configuration.
 """
@@ -48,7 +48,7 @@ class RemoteAuthError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class RemoteEndpoints:
-    """Normalized REST and WebSocket Core API endpoints for one Remote."""
+    """Normalized REST and WebSocket Core API endpoints for one UC Remote."""
 
     rest_base_url: str
     websocket_url: str
@@ -72,7 +72,7 @@ def normalize_remote_address(value: str) -> RemoteEndpoints:
 
     candidate = str(value or "").strip()
     if not candidate:
-        raise RemoteAuthError("Remote address is required", RemoteAuthErrorCode.INVALID_INPUT)
+        raise RemoteAuthError("UC Remote address is required", RemoteAuthErrorCode.INVALID_INPUT)
 
     if "://" not in candidate:
         candidate = f"http://{candidate}"
@@ -82,31 +82,31 @@ def normalize_remote_address(value: str) -> RemoteEndpoints:
         # Accessing ``port`` validates malformed host:port combinations.
         _ = parts.port
     except ValueError as err:
-        raise RemoteAuthError("Remote address is invalid", RemoteAuthErrorCode.INVALID_INPUT) from err
+        raise RemoteAuthError("UC Remote address is invalid", RemoteAuthErrorCode.INVALID_INPUT) from err
 
     scheme = parts.scheme.lower()
     if scheme not in {"http", "https", "ws", "wss"}:
         raise RemoteAuthError(
-            "Remote address must use http, https, ws, or wss",
+            "UC Remote address must use http, https, ws, or wss",
             RemoteAuthErrorCode.INVALID_INPUT,
         )
     if not parts.hostname or not parts.netloc:
-        raise RemoteAuthError("Remote address is invalid", RemoteAuthErrorCode.INVALID_INPUT)
+        raise RemoteAuthError("UC Remote address is invalid", RemoteAuthErrorCode.INVALID_INPUT)
     if parts.username or parts.password:
         raise RemoteAuthError(
-            "Do not include credentials in the Remote address",
+            "Do not include credentials in the UC Remote address",
             RemoteAuthErrorCode.INVALID_INPUT,
         )
     if parts.query or parts.fragment:
         raise RemoteAuthError(
-            "Remote address must not include a query or fragment",
+            "UC Remote address must not include a query or fragment",
             RemoteAuthErrorCode.INVALID_INPUT,
         )
 
     path = parts.path.rstrip("/")
     if path not in {"", "/ws", "/api"}:
         raise RemoteAuthError(
-            "Remote address must not include an application path",
+            "UC Remote address must not include an application path",
             RemoteAuthErrorCode.INVALID_INPUT,
         )
 
@@ -120,7 +120,7 @@ def normalize_remote_address(value: str) -> RemoteEndpoints:
 
 
 def setup_address_from_core_url(core_url: str) -> str:
-    """Return a user-editable Remote address for the setup form."""
+    """Return a user-editable UC Remote address for the setup form."""
 
     try:
         endpoints = normalize_remote_address(core_url)
@@ -139,12 +139,12 @@ async def create_persistent_api_key(
     timeout_seconds: float = 10,
     key_name: str = API_KEY_NAME,
 ) -> tuple[RemoteEndpoints, str]:
-    """Create and return a persistent Remote Core API key.
+    """Create and return a persistent UC Core API key.
 
-    The request follows the documented Remote REST Core API flow:
+    The request follows the documented UC REST Core API flow:
     ``POST /api/auth/api_keys`` using Basic Auth with username
     ``web-configurator`` and the PIN supplied by the user. The returned key is
-    shown by the Remote only once, so callers must persist it immediately.
+    shown by the UC Remote only once, so callers must persist it immediately.
     """
 
     endpoints = normalize_remote_address(remote_address)
@@ -176,13 +176,13 @@ async def create_persistent_api_key(
                     )
                 if response.status == 404:
                     raise RemoteAuthError(
-                        "The Remote does not provide the API-key endpoint",
+                        "The UC Remote does not provide the API-key endpoint",
                         RemoteAuthErrorCode.NOT_FOUND,
                         status=response.status,
                     )
                 if response.status < 200 or response.status >= 300:
                     raise RemoteAuthError(
-                        f"Remote API-key creation failed with HTTP {response.status}",
+                        f"UC API-key creation failed with HTTP {response.status}",
                         RemoteAuthErrorCode.INVALID_RESPONSE,
                         status=response.status,
                     )
@@ -191,14 +191,14 @@ async def create_persistent_api_key(
                     data: Any = json.loads(body)
                 except json.JSONDecodeError as err:
                     raise RemoteAuthError(
-                        "The Remote returned an invalid API-key response",
+                        "The UC Remote returned an invalid API-key response",
                         RemoteAuthErrorCode.INVALID_RESPONSE,
                         status=response.status,
                     ) from err
                 api_key = data.get("api_key") if isinstance(data, dict) else None
                 if not isinstance(api_key, str) or not api_key.strip():
                     raise RemoteAuthError(
-                        "The Remote did not return an API key",
+                        "The UC Remote did not return an API key",
                         RemoteAuthErrorCode.INVALID_RESPONSE,
                         status=response.status,
                     )
@@ -207,16 +207,16 @@ async def create_persistent_api_key(
         raise
     except asyncio.TimeoutError as err:
         raise RemoteAuthError(
-            "The Remote did not respond before the request timed out",
+            "The UC Remote did not respond before the request timed out",
             RemoteAuthErrorCode.TIMEOUT,
         ) from err
     except aiohttp.ClientConnectorError as err:
         raise RemoteAuthError(
-            "Unable to connect to the Remote",
+            "Unable to connect to the UC Remote",
             RemoteAuthErrorCode.CONNECTION,
         ) from err
     except aiohttp.ClientError as err:
         raise RemoteAuthError(
-            "Remote API communication failed",
+            "UC API communication failed",
             RemoteAuthErrorCode.CONNECTION,
         ) from err

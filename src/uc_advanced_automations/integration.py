@@ -1,4 +1,4 @@
-"""Unfolded Circle Integration API entity exposed to the Remote."""
+"""UC Integration API entity exposed to the UC Remote."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ ENTITY_ID = "advanced_automations"
 
 
 class IntegrationController:
-    """Maintain the virtual Remote entity, dispatch commands and refresh its Core definition."""
+    """Maintain the virtual UC entity, dispatch commands and refresh its Core definition."""
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class IntegrationController:
                 return {
                     "status": "api-key-required",
                     "refreshed": False,
-                    "message": "Run integration setup to create the Remote Core API key.",
+                    "message": "Run integration setup to create the UC Core API key.",
                 }
             try:
                 configured = await self._find_core_entity()
@@ -87,7 +87,7 @@ class IntegrationController:
                     return {
                         "status": "not-configured",
                         "refreshed": False,
-                        "message": "The Advanced Automations entity has not been added to the Remote yet.",
+                        "message": "The UC Advanced Automations entity has not been added to the UC Remote yet.",
                     }
                 integration_id = configured.get("integration_id")
                 if not isinstance(integration_id, str) or not integration_id:
@@ -167,7 +167,7 @@ class IntegrationController:
         pages = self._build_pages(automations)
         return ucapi.Remote(
             ENTITY_ID,
-            {"en": "Advanced Automations", "de": "Erweiterte Automationen"},
+            {"en": "UC Advanced Automations", "de": "UC Erweiterte Automationen"},
             [remote.Features.SEND_CMD],
             {remote.Attributes.STATE: remote.States.ON},
             simple_commands=commands or None,
@@ -182,7 +182,7 @@ class IntegrationController:
     def _build_pages(self, automations) -> list[UiPage]:
         if not automations:
             page = UiPage("empty", "Automations")
-            page.add(create_ui_text("Open the web interface to create an automation", 0, 1, size=Size(4, 2)))
+            page.add(create_ui_text("Open the UC web interface to create an automation", 0, 1, size=Size(4, 2)))
             return [page]
 
         pages: list[UiPage] = []
@@ -219,5 +219,5 @@ class IntegrationController:
         if not automation or not automation.enabled or not automation.command_enabled:
             return ucapi.StatusCodes.NOT_FOUND
 
-        result = self.engine.start(automation, source="Unfolded Circle Remote")
+        result = self.engine.start(automation, source="UC Remote")
         return ucapi.StatusCodes.OK if result.accepted else ucapi.StatusCodes.CONFLICT

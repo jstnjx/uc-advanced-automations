@@ -30,7 +30,7 @@ class RuntimeEnvironment:
 
     @property
     def display_name(self) -> str:
-        return "Remote Two/3" if self.runs_on_remote else "External service"
+        return "UC Remote" if self.runs_on_remote else "External"
 
     def apply_process_environment(self, integration_port: int = 9090) -> None:
         """Apply target-specific defaults before ``ucapi`` initializes.
@@ -49,10 +49,10 @@ class RuntimeEnvironment:
 
 
 def detect_runtime() -> RuntimeEnvironment:
-    """Detect Remote installation or external service operation.
+    """Detect UC Remote installation or external service operation.
 
     Explicit ``UC_RUNTIME_MODE`` wins. External deployments should set
-    ``UC_EXTERNAL=true``. A Remote custom integration receives ``UC_CONFIG_HOME``;
+    ``UC_EXTERNAL=true``. A UC Remote custom integration receives ``UC_CONFIG_HOME``;
     this is used as the embedded-mode signal when no explicit mode is supplied.
     """
 

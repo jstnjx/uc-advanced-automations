@@ -17,6 +17,30 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn("cryptoApi.getRandomValues(bytes)", source)
         self.assertIn("Math.floor(Math.random() * 256)", source)
 
+
+    def test_streamlined_builder_and_modal_contract(self) -> None:
+        source = APP_JS.read_text(encoding="utf-8")
+        html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
+        self.assertNotRegex(source, r"\b(alert|confirm|prompt)\s*\(")
+        self.assertIn('id="messageDialog"', html)
+        self.assertIn('id="stepDialog"', html)
+        self.assertIn('option value="replace"', html)
+        self.assertIn('id="triggerMode"', html)
+        self.assertIn("attachSortable", source)
+        self.assertIn("attributeField", source)
+        self.assertIn("Sensors are read-only", source)
+        self.assertNotIn("Running on:", source)
+        self.assertNotIn("UNFOLDED CIRCLE", html)
+
+    def test_diamond_assets_are_used_for_icon_and_favicon(self) -> None:
+        html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")
+        driver = Path("driver.json").read_text(encoding="utf-8")
+        self.assertIn("/static/favicon.png", html)
+        self.assertIn("/static/integration-icon.png", html)
+        self.assertIn('"icon": "custom:advanced-automations.png"', driver)
+        self.assertTrue(Path("advanced-automations.png").is_file())
+        self.assertTrue(Path("src/uc_advanced_automations/static/favicon.png").is_file())
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the frontend compatibility test")
     def test_uuid_helper_runs_without_web_crypto(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")

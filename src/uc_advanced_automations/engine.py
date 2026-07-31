@@ -64,6 +64,11 @@ class AutomationEngine:
             self._write_log("warning", "-", automation.id, "Run ignored: automation is already active")
             return RunResult(False, None, "Automation is already running")
 
+        if automation.mode == "replace" and active:
+            for task in tuple(active):
+                task.cancel()
+            self._write_log("info", "-", automation.id, "Replacing active run")
+
         run_id = str(uuid4())
         task = asyncio.create_task(self._run(automation, run_id, source), name=f"automation-{automation.id}")
         active.add(task)

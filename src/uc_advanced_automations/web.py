@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +21,15 @@ if TYPE_CHECKING:
     from .integration import IntegrationController
 
 STATIC_DIR = Path(__file__).parent / "static"
+_LOG = logging.getLogger(__name__)
+
+
+class AutomationValidationError(Exception):
+    """Structured, user-correctable automation validation error."""
+
+    def __init__(self, details: list[dict[str, Any]]) -> None:
+        super().__init__("Automation validation failed")
+        self.details = details
 
 
 @web.middleware
@@ -27,7 +37,15 @@ async def error_middleware(request: web.Request, handler):
     try:
         return await handler(request)
     except ValidationError as err:
-        return web.json_response({"error": "Validation failed", "details": err.errors()}, status=400)
+        return web.json_response(
+            {"error": "Validation failed", "details": _validation_details(err)},
+            status=400,
+        )
+    except AutomationValidationError as err:
+        return web.json_response(
+            {"error": "Automation validation failed", "details": err.details},
+            status=400,
+        )
     except CoreApiError as err:
         return web.json_response({"error": str(err)}, status=err.code if 400 <= err.code <= 599 else 500)
     except json.JSONDecodeError:
@@ -35,7 +53,8 @@ async def error_middleware(request: web.Request, handler):
     except web.HTTPException:
         raise
     except Exception as err:  # pragma: no cover - final safety net
-        return web.json_response({"error": str(err)}, status=500)
+        _LOG.exception("Unhandled web request error")
+        return web.json_response({"error": "Internal server error"}, status=500)
 
 
 def create_app(
@@ -207,6 +226,7 @@ async def get_automations(request: web.Request) -> web.Response:
 async def create_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
     automation = Automation.model_validate(await request.json())
+    await _validate_command_targets(request, automation)
 
     def mutate(config):
         config.automations.append(automation)
@@ -224,6 +244,7 @@ async def update_automation(request: web.Request) -> web.Response:
     body = await request.json()
     body["id"] = automation_id
     automation = Automation.model_validate(body)
+    await _validate_command_targets(request, automation)
     found = False
 
     def mutate(config):
@@ -299,3 +320,71 @@ def _display_name(entity: dict[str, Any]) -> str:
     if isinstance(name, dict):
         return str(name.get("en") or next(iter(name.values()), ""))
     return str(entity.get("entity_id", ""))
+
+def _validation_details(err: ValidationError) -> list[dict[str, Any]]:
+    """Convert Pydantic errors into a stable, JSON-safe UI payload."""
+    try:
+        errors = err.errors(include_url=False, include_context=False, include_input=False)
+    except TypeError:  # pragma: no cover - compatibility with older Pydantic
+        errors = err.errors()
+    details: list[dict[str, Any]] = []
+    for item in errors:
+        loc = [str(part) for part in item.get("loc", [])]
+        details.append(
+            {
+                "loc": loc,
+                "field": ".".join(loc),
+                "msg": str(item.get("msg", "Invalid value")),
+                "type": str(item.get("type", "value_error")),
+            }
+        )
+    return details
+
+
+async def _validate_command_targets(request: web.Request, automation: Automation) -> None:
+    """Reject command steps aimed at UC sensor entities.
+
+    Sensors expose state data but no commands. The UI filters them out, while this
+    server-side check protects imported or stale automation payloads. Validation is
+    skipped only when UC Core is unavailable, because the structural model still
+    validates the command itself.
+    """
+    command_steps = list(_walk_command_steps(automation.steps))
+    if not command_steps:
+        return
+    core: CoreClient = request.app["core"]
+    try:
+        entities = await core.get_entities()
+    except CoreApiError:
+        return
+    entity_types = {
+        str(item.get("entity_id")): str(item.get("entity_type", "")).lower()
+        for item in entities
+        if isinstance(item, dict) and item.get("entity_id")
+    }
+    details: list[dict[str, Any]] = []
+    for path, step in command_steps:
+        entity_id = str(step.get("entity_id", ""))
+        if entity_types.get(entity_id) == "sensor":
+            details.append(
+                {
+                    "loc": [*path, "entity_id"],
+                    "field": ".".join([*path, "entity_id"]),
+                    "msg": f"{entity_id} is a sensor and cannot receive commands",
+                    "type": "sensor_is_read_only",
+                }
+            )
+    if details:
+        raise AutomationValidationError(details)
+
+
+def _walk_command_steps(steps: list[dict[str, Any]], prefix: list[str] | None = None):
+    base = prefix or ["steps"]
+    for index, step in enumerate(steps):
+        path = [*base, str(index)]
+        if step.get("type") == "command":
+            yield path, step
+        if step.get("type") == "condition":
+            yield from _walk_command_steps(step.get("then", []), [*path, "then"])
+            yield from _walk_command_steps(step.get("else", []), [*path, "else"])
+

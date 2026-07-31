@@ -7,16 +7,24 @@ const state = {
   settings: null,
   dirty: false,
   commandDefinitions: new Map(),
+  drag: null,
+  stepTarget: null,
 };
 
 const $ = (id) => document.getElementById(id);
 
+class ApiError extends Error {
+  constructor(message, status = 0, details = []) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = Array.isArray(details) ? details : [];
+  }
+}
+
 function createId() {
   const cryptoApi = typeof globalThis !== "undefined" ? globalThis.crypto : null;
-
-  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
-    return cryptoApi.randomUUID();
-  }
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") return cryptoApi.randomUUID();
 
   const bytes = new Uint8Array(16);
   if (cryptoApi && typeof cryptoApi.getRandomValues === "function") {
@@ -26,12 +34,8 @@ function createId() {
       bytes[index] = Math.floor(Math.random() * 256);
     }
   }
-
-  // RFC 4122 version 4 UUID bits. This identifier is used only for local
-  // automation objects; it is not an authentication or security token.
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }
@@ -42,16 +46,18 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(fetchOptions.headers || {}) },
     ...fetchOptions,
   });
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
+  let data = null;
+  if (response.status !== 204) {
+    const contentType = response.headers.get("content-type") || "";
     try {
-      const data = await response.json();
-      message = data.error || message;
-      if (data.details) message += `: ${data.details.map((item) => item.msg).join(", ")}`;
-    } catch (_) {}
-    throw new Error(message);
+      data = contentType.includes("application/json") ? await response.json() : { error: await response.text() };
+    } catch (_) {
+      data = null;
+    }
   }
-  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) {
+    throw new ApiError(data?.error || `Request failed (${response.status})`, response.status, data?.details || []);
+  }
   return returnResponse ? { data, response } : data;
 }
 
@@ -72,10 +78,102 @@ function showNotice(message, type = "success", timeout = 4500) {
   if (timeout) setTimeout(() => notice.classList.add("hidden"), timeout);
 }
 
+function cleanValidationMessage(message) {
+  return String(message || "Invalid value")
+    .replace(/^Value error,\s*/i, "")
+    .replace(/^Assertion failed,\s*/i, "");
+}
+
+function normalizeDetails(details) {
+  return (details || []).map((item) => ({
+    field: item.field || (Array.isArray(item.loc) ? item.loc.join(".") : ""),
+    msg: cleanValidationMessage(item.msg || item.message),
+  }));
+}
+
+function openMessageDialog({
+  title,
+  message = "",
+  details = [],
+  confirmLabel = "OK",
+  cancelLabel = "Cancel",
+  showCancel = false,
+  danger = false,
+} = {}) {
+  const dialog = $("messageDialog");
+  $("messageDialogTitle").textContent = title || "Message";
+  $("messageDialogText").textContent = message;
+  const list = $("messageDialogDetails");
+  list.replaceChildren();
+  const normalized = normalizeDetails(details);
+  list.classList.toggle("hidden", !normalized.length);
+  normalized.forEach((detail) => {
+    const item = document.createElement("li");
+    const field = detail.field ? `${friendlyPath(detail.field)}: ` : "";
+    item.textContent = `${field}${detail.msg}`;
+    list.append(item);
+  });
+  const cancel = $("messageDialogCancel");
+  cancel.textContent = cancelLabel;
+  cancel.classList.toggle("hidden", !showCancel);
+  const confirm = $("messageDialogConfirm");
+  confirm.textContent = confirmLabel;
+  confirm.className = `button ${danger ? "danger" : "primary"}`;
+
+  return new Promise((resolve) => {
+    const onClose = () => {
+      dialog.removeEventListener("close", onClose);
+      resolve(dialog.returnValue === "default");
+    };
+    dialog.addEventListener("close", onClose);
+    dialog.showModal();
+  });
+}
+
+function friendlyPath(path) {
+  return String(path)
+    .replace(/steps\.(\d+)/g, (_, index) => `Step ${Number(index) + 1}`)
+    .replace(/triggers\.(\d+)/g, (_, index) => `Trigger ${Number(index) + 1}`)
+    .replace(/\.then\./g, " → Then → ")
+    .replace(/\.else\./g, " → Else → ")
+    .replace(/\.(\w+)$/, " · $1")
+    .replaceAll("_", " ");
+}
+
+function showError(error, title = "Unable to complete the request") {
+  const message = error instanceof Error ? error.message : String(error);
+  const details = error?.details || [];
+  return openMessageDialog({ title, message, details, confirmLabel: "Close" });
+}
+
 function displayName(entity) {
-  if (typeof entity.name === "string") return entity.name;
-  if (entity.name && typeof entity.name === "object") return entity.name.en || Object.values(entity.name)[0];
-  return entity.entity_id;
+  if (typeof entity?.name === "string") return entity.name;
+  if (entity?.name && typeof entity.name === "object") return entity.name.en || Object.values(entity.name)[0];
+  return entity?.entity_id || "Unknown entity";
+}
+
+function localizedName(value, fallback = "") {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") return value.en || Object.values(value)[0] || fallback;
+  return fallback;
+}
+
+function findEntity(entityId) {
+  return state.entities.find((entity) => entity.entity_id === entityId) || null;
+}
+
+function isSensor(entityOrId) {
+  const entity = typeof entityOrId === "string" ? findEntity(entityOrId) : entityOrId;
+  return String(entity?.entity_type || "").toLowerCase() === "sensor";
+}
+
+function commandableEntities() {
+  return state.entities.filter((entity) => !isSensor(entity));
+}
+
+function firstEntityId({ commandable = false } = {}) {
+  const entities = commandable ? commandableEntities() : state.entities;
+  return entities[0]?.entity_id || "";
 }
 
 function newAutomation() {
@@ -88,19 +186,43 @@ function newAutomation() {
     enabled: true,
     command_enabled: true,
     mode: "single",
+    trigger_mode: "any",
     triggers: [],
     steps: [],
     _new: true,
   };
 }
 
-function addAutomation() {
+async function allowDiscardChanges() {
+  if (!state.dirty) return true;
+  return openMessageDialog({
+    title: "Discard unsaved changes?",
+    message: "The current automation contains changes that have not been saved.",
+    confirmLabel: "Discard changes",
+    showCancel: true,
+    danger: true,
+  });
+}
+
+async function addAutomation() {
+  const wasDirty = state.dirty;
+  if (!(await allowDiscardChanges())) return;
+  if (wasDirty) await loadAutomations();
   const automation = newAutomation();
   state.automations.push(automation);
   state.selectedId = automation.id;
   state.dirty = true;
   renderAll();
   $("automationName").focus();
+}
+
+async function selectAutomation(id) {
+  if (id === state.selectedId) return;
+  if (!(await allowDiscardChanges())) return;
+  if (state.dirty) await loadAutomations();
+  state.selectedId = id;
+  state.dirty = false;
+  renderAll();
 }
 
 function renderAll() {
@@ -112,7 +234,6 @@ function renderAutomationList() {
   const list = $("automationList");
   list.replaceChildren();
   $("automationCount").textContent = `${state.automations.length} configured`;
-
   if (!state.automations.length) {
     const empty = document.createElement("p");
     empty.className = "log-empty";
@@ -120,7 +241,6 @@ function renderAutomationList() {
     list.append(empty);
     return;
   }
-
   for (const automation of state.automations) {
     const button = document.createElement("button");
     button.type = "button";
@@ -132,16 +252,13 @@ function renderAutomationList() {
     const dot = document.createElement("span");
     dot.className = `dot${automation.enabled ? " enabled" : ""}`;
     top.append(name, dot);
-    const command = document.createElement("small");
+    const summary = document.createElement("small");
     const triggerCount = (automation.triggers || []).filter((item) => item.enabled !== false).length;
     const commandText = automation.command_enabled !== false ? automation.command : "Background only";
-    command.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}` : commandText;
-    button.append(top, command);
-    button.addEventListener("click", () => {
-      state.selectedId = automation.id;
-      state.dirty = false;
-      renderAll();
-    });
+    const logic = triggerCount > 1 ? ` · ${automation.trigger_mode === "all" ? "AND" : "OR"}` : "";
+    summary.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}${logic}` : commandText;
+    button.append(top, summary);
+    button.addEventListener("click", () => selectAutomation(automation.id));
     list.append(button);
   }
 }
@@ -152,15 +269,19 @@ function renderEditor() {
   $("editor").classList.toggle("hidden", !automation);
   if (!automation) return;
 
+  automation.triggers ||= [];
+  automation.steps ||= [];
+  automation.trigger_mode ||= "any";
   $("editorTitle").textContent = automation.name || "Untitled automation";
   $("automationName").value = automation.name || "";
   $("automationCommand").value = automation.command || "";
   $("automationMode").value = automation.mode || "single";
+  $("triggerMode").value = automation.trigger_mode || "any";
   $("automationDescription").value = automation.description || "";
   $("automationEnabled").checked = automation.enabled !== false;
   $("automationCommandEnabled").checked = automation.command_enabled !== false;
   $("automationCommand").disabled = automation.command_enabled === false;
-  $("saveAutomation").textContent = automation._new ? "Create automation" : "Save";
+  $("saveAutomation").textContent = automation._new ? "Create automation" : state.dirty ? "Save changes" : "Save";
   renderTriggers(automation);
   renderSteps($("steps"), automation.steps, "root");
 }
@@ -183,20 +304,35 @@ function bindEditorFields() {
     markDirty();
   });
   $("automationMode").addEventListener("change", (event) => {
-    selectedAutomation().mode = event.target.value;
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.mode = event.target.value;
+    markDirty();
+  });
+  $("triggerMode").addEventListener("change", (event) => {
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.trigger_mode = event.target.value;
+    renderAutomationList();
     markDirty();
   });
   $("automationDescription").addEventListener("input", (event) => {
-    selectedAutomation().description = event.target.value;
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.description = event.target.value;
     markDirty();
   });
   $("automationEnabled").addEventListener("change", (event) => {
-    selectedAutomation().enabled = event.target.checked;
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.enabled = event.target.checked;
     renderAutomationList();
     markDirty();
   });
   $("automationCommandEnabled").addEventListener("change", (event) => {
-    selectedAutomation().command_enabled = event.target.checked;
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.command_enabled = event.target.checked;
     $("automationCommand").disabled = !event.target.checked;
     renderAutomationList();
     markDirty();
@@ -208,7 +344,7 @@ function makeTrigger() {
     id: createId(),
     type: "entity_state",
     enabled: true,
-    entity_id: state.entities[0]?.entity_id || "",
+    entity_id: firstEntityId(),
     attribute: "state",
     from_value: null,
     to_value: null,
@@ -220,11 +356,11 @@ function makeTrigger() {
 function renderTriggers(automation) {
   const container = $("triggers");
   container.replaceChildren();
-  const triggers = automation.triggers || (automation.triggers = []);
+  const triggers = automation.triggers;
   if (!triggers.length) {
     const empty = document.createElement("div");
     empty.className = "steps-empty";
-    empty.textContent = "No background triggers. This automation runs only when invoked manually or from the Remote.";
+    empty.textContent = "No background triggers. Use the UC command or add a trigger.";
     container.append(empty);
     return;
   }
@@ -236,8 +372,12 @@ function renderTrigger(trigger, index, triggers) {
   card.className = "trigger-card";
   const head = document.createElement("div");
   head.className = "trigger-card-head";
-  const title = document.createElement("strong");
-  title.textContent = `State-change trigger ${index + 1}`;
+  const title = document.createElement("div");
+  title.className = "trigger-title";
+  const handle = dragHandle();
+  const label = document.createElement("strong");
+  label.textContent = `Trigger ${index + 1}`;
+  title.append(handle, label);
   const remove = toolButton("×", "Delete trigger", () => {
     triggers.splice(index, 1);
     markDirty();
@@ -245,129 +385,146 @@ function renderTrigger(trigger, index, triggers) {
   });
   head.append(title, remove);
 
+  const body = document.createElement("div");
+  body.className = "trigger-body";
   const grid = document.createElement("div");
   grid.className = "trigger-grid";
   grid.append(
-    entityField("Entity", trigger.entity_id || "", (value) => { trigger.entity_id = value; }),
-    textField("Attribute", trigger.attribute || "state", (value) => { trigger.attribute = value; }, "state"),
-    textField("From value", trigger.from_value == null ? "" : valueToInput(trigger.from_value), (value) => {
-      trigger.from_value = value.trim() === "" ? null : parseLooseValue(value);
-    }, "Blank = any previous value"),
-    textField("To value", trigger.to_value == null ? "" : valueToInput(trigger.to_value), (value) => {
-      trigger.to_value = value.trim() === "" ? null : parseLooseValue(value);
-    }, "Blank = any new value"),
+    entityField("UC entity", trigger.entity_id || "", (value) => {
+      trigger.entity_id = value;
+      trigger.attribute = defaultAttribute(value);
+      renderEditor();
+    }),
+    attributeField("Attribute", trigger.entity_id, trigger.attribute || "state", (value) => { trigger.attribute = value; }),
+    valueField("From", trigger.from_value, (value) => { trigger.from_value = value; }, "Any previous value"),
+    valueField("To", trigger.to_value, (value) => { trigger.to_value = value; }, "Any new value"),
+  );
+  const advanced = document.createElement("details");
+  advanced.className = "advanced-options";
+  const summary = document.createElement("summary");
+  summary.textContent = "Timing and trigger options";
+  const timing = document.createElement("div");
+  timing.className = "trigger-grid";
+  timing.append(
     numberField("Stable for (ms)", trigger.debounce_ms ?? 0, (value) => { trigger.debounce_ms = value; }, 0, 86400000),
     numberField("Cooldown (ms)", trigger.cooldown_ms ?? 0, (value) => { trigger.cooldown_ms = value; }, 0, 86400000),
   );
-  const enabled = document.createElement("label");
-  enabled.className = "check-row";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = trigger.enabled !== false;
-  checkbox.addEventListener("change", () => { trigger.enabled = checkbox.checked; markDirty(); renderAutomationList(); });
-  const text = document.createElement("span");
-  text.textContent = "Trigger enabled";
-  enabled.append(checkbox, text);
-  card.append(head, grid, enabled);
+  const enabled = checkField("Trigger enabled", trigger.enabled !== false, (checked) => {
+    trigger.enabled = checked;
+    renderAutomationList();
+  });
+  advanced.append(summary, timing, enabled);
+  body.append(grid, advanced);
+  card.append(head, body);
+  attachSortable(handle, card, triggers, index, "trigger");
   return card;
 }
 
 function makeStep(type) {
   switch (type) {
-    case "command": return { type, entity_id: state.entities[0]?.entity_id || "", cmd_id: "on", params: {} };
+    case "command": return { type, entity_id: firstEntityId({ commandable: true }), cmd_id: "", params: {} };
     case "delay": return { type, milliseconds: 1000 };
-    case "condition": return {
-      type,
-      mode: "all",
-      conditions: [makeCondition("entity")],
-      then: [],
-      else: [],
-    };
-    case "wait": return {
-      type,
-      mode: "all",
-      conditions: [makeCondition("entity")],
-      timeout_ms: 30000,
-      interval_ms: 500,
-    };
-    case "http": return {
-      type,
-      method: "POST",
-      url: "http://",
-      headers: {},
-      body: {},
-      timeout_seconds: 10,
-      status_min: 200,
-      status_max: 299,
-    };
+    case "condition": return { type, mode: "all", conditions: [makeCondition("entity")], then: [], else: [] };
+    case "wait": return { type, mode: "all", conditions: [makeCondition("entity")], timeout_ms: 30000, interval_ms: 500 };
+    case "http": return { type, method: "POST", url: "http://", headers: {}, body: {}, timeout_seconds: 10, status_min: 200, status_max: 299 };
     case "log": return { type, message: "Automation reached this step", level: "info" };
     default: throw new Error(`Unknown step type: ${type}`);
   }
 }
 
 function makeCondition(kind) {
-  if (kind === "time") {
-    return { kind: "time", operator: "between", start: "18:00", end: "23:59", weekdays: [0, 1, 2, 3, 4, 5, 6] };
-  }
-  return {
-    kind: "entity",
-    entity_id: state.entities[0]?.entity_id || "",
-    attribute: "state",
-    operator: "eq",
-    value: "ON",
-  };
+  if (kind === "time") return { kind: "time", operator: "between", start: "18:00", end: "23:59", weekdays: [0, 1, 2, 3, 4, 5, 6] };
+  const entityId = firstEntityId();
+  return { kind: "entity", entity_id: entityId, attribute: defaultAttribute(entityId), operator: "eq", value: "ON" };
 }
 
 function renderSteps(container, steps, branchName) {
   container.replaceChildren();
+  container.classList.add("drop-zone");
   if (!steps.length) {
     const empty = document.createElement("div");
     empty.className = "steps-empty";
-    empty.textContent = branchName === "root" ? "No steps. Add the first action above." : "No steps in this branch.";
+    empty.textContent = branchName === "root" ? "No steps. Add the first sequence step." : "No steps in this branch.";
     container.append(empty);
     return;
   }
-
   steps.forEach((step, index) => container.append(renderStep(step, index, steps)));
 }
 
 function renderStep(step, index, siblings) {
   const wrapper = document.createElement("article");
   wrapper.className = "step";
-
   const head = document.createElement("div");
   head.className = "step-head";
   const title = document.createElement("div");
   title.className = "step-title";
+  const handle = dragHandle();
   const number = document.createElement("span");
   number.className = "step-number";
   number.textContent = String(index + 1).padStart(2, "0");
   const label = document.createElement("span");
   label.textContent = stepLabel(step.type);
-  title.append(number, label);
-
+  title.append(handle, number, label);
   const tools = document.createElement("div");
   tools.className = "step-tools";
-  tools.append(
-    toolButton("↑", "Move up", () => moveStep(siblings, index, -1)),
-    toolButton("↓", "Move down", () => moveStep(siblings, index, 1)),
-    toolButton("×", "Delete step", () => { siblings.splice(index, 1); markDirty(); renderEditor(); }),
-  );
+  tools.append(toolButton("×", "Delete step", () => {
+    siblings.splice(index, 1);
+    markDirty();
+    renderEditor();
+  }));
   head.append(title, tools);
-
   const body = document.createElement("div");
   body.className = "step-body";
   body.append(renderStepBody(step));
-  if (!["condition"].includes(step.type)) {
-    body.append(continueOnError(step));
-  }
+  if (step.type !== "condition") body.append(continueOnError(step));
   wrapper.append(head, body);
+  attachSortable(handle, wrapper, siblings, index, "step");
   return wrapper;
+}
+
+function dragHandle() {
+  const handle = document.createElement("span");
+  handle.className = "drag-handle";
+  handle.textContent = "⋮⋮";
+  handle.title = "Drag to reorder";
+  handle.draggable = true;
+  return handle;
+}
+
+function attachSortable(handle, card, siblings, index, kind) {
+  handle.addEventListener("dragstart", (event) => {
+    state.drag = { siblings, index, kind };
+    card.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `${kind}:${index}`);
+  });
+  handle.addEventListener("dragend", () => {
+    state.drag = null;
+    document.querySelectorAll(".dragging,.drag-over").forEach((node) => node.classList.remove("dragging", "drag-over"));
+  });
+  card.addEventListener("dragover", (event) => {
+    if (!state.drag || state.drag.kind !== kind || state.drag.siblings !== siblings) return;
+    event.preventDefault();
+    card.classList.add("drag-over");
+  });
+  card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
+  card.addEventListener("drop", (event) => {
+    event.preventDefault();
+    card.classList.remove("drag-over");
+    if (!state.drag || state.drag.kind !== kind || state.drag.siblings !== siblings) return;
+    const from = state.drag.index;
+    const to = index;
+    if (from === to) return;
+    const [moved] = siblings.splice(from, 1);
+    siblings.splice(to, 0, moved);
+    markDirty();
+    renderEditor();
+  });
 }
 
 function stepLabel(type) {
   return {
-    command: "Device command",
+    command: "UC command",
     delay: "Delay",
     condition: "If / else condition",
     wait: "Wait until",
@@ -386,18 +543,9 @@ function toolButton(text, label, handler) {
   return button;
 }
 
-function moveStep(steps, index, direction) {
-  const target = index + direction;
-  if (target < 0 || target >= steps.length) return;
-  [steps[index], steps[target]] = [steps[target], steps[index]];
-  markDirty();
-  renderEditor();
-}
-
 function renderStepBody(step) {
   const grid = document.createElement("div");
   grid.className = "step-grid";
-
   if (step.type === "command") {
     grid.append(renderCommandStep(step));
   } else if (step.type === "delay") {
@@ -405,9 +553,7 @@ function renderStepBody(step) {
   } else if (step.type === "condition") {
     const block = document.createElement("div");
     block.className = "wide";
-    block.append(conditionGroup(step));
-    block.append(branchEditor("Then", "then", step.then, step));
-    block.append(branchEditor("Else", "else", step.else, step));
+    block.append(conditionGroup(step), branchEditor("Then", "then", step.then, step), branchEditor("Else", "else", step.else, step));
     grid.append(block);
   } else if (step.type === "wait") {
     const conditions = document.createElement("div");
@@ -436,18 +582,11 @@ function renderStepBody(step) {
   return grid;
 }
 
-function localizedName(value, fallback = "") {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") return value.en || Object.values(value)[0] || fallback;
-  return fallback;
-}
-
 async function loadCommandDefinitions(entityId) {
-  if (!entityId) return null;
+  if (!entityId || isSensor(entityId)) return { entity: findEntity(entityId), commands: [] };
   if (state.commandDefinitions.has(entityId)) return state.commandDefinitions.get(entityId);
   const pending = api(`/api/entities/${encodeURIComponent(entityId)}/commands`)
-    .then((data) => data)
-    .catch((error) => ({ error: error.message, entity: null, commands: [] }));
+    .catch((error) => ({ error: error.message, entity: findEntity(entityId), commands: [] }));
   state.commandDefinitions.set(entityId, pending);
   const resolved = await pending;
   state.commandDefinitions.set(entityId, resolved);
@@ -464,40 +603,39 @@ function renderCommandStep(step) {
   wrapper.className = "wide command-editor";
   const grid = document.createElement("div");
   grid.className = "step-grid";
-  grid.append(entityField("Entity", step.entity_id || "", (value) => {
+  grid.append(entityField("Command-capable UC entity", step.entity_id || "", (value) => {
     step.entity_id = value;
     step.cmd_id = "";
     step.params = {};
-    loadCommandDefinitions(value).then(() => {
-      if (selectedAutomation()) renderEditor();
-    });
-  }));
+    loadCommandDefinitions(value).then(() => { if (selectedAutomation()) renderEditor(); });
+  }, { commandable: true }));
+
+  if (step.entity_id && isSensor(step.entity_id)) {
+    const note = document.createElement("div");
+    note.className = "read-only-note wide";
+    note.textContent = "Sensors are read-only UC entities. Select a command-capable entity for this step.";
+    grid.append(note);
+    wrapper.append(grid);
+    return wrapper;
+  }
 
   const definitions = getCommandDefinitions(step.entity_id);
   if (!definitions && step.entity_id) {
     const loading = fieldWrap("Command");
     const input = document.createElement("input");
     input.disabled = true;
-    input.placeholder = "Loading command metadata…";
+    input.placeholder = "Loading UC command metadata…";
     loading.append(input);
     grid.append(loading);
-    loadCommandDefinitions(step.entity_id).then(() => {
-      if (selectedAutomation()) renderEditor();
-    });
-  } else if (definitions && definitions.commands?.length) {
-    const select = fieldWrap("Command");
+    loadCommandDefinitions(step.entity_id).then(() => { if (selectedAutomation()) renderEditor(); });
+  } else if (definitions?.commands?.length) {
+    const field = fieldWrap("Command");
     const control = document.createElement("select");
     if (step.cmd_id && !definitions.commands.some((item) => item.id === step.cmd_id)) {
-      const unknown = document.createElement("option");
-      unknown.value = step.cmd_id;
-      unknown.textContent = `${step.cmd_id} (not currently advertised)`;
-      control.append(unknown);
+      control.append(new Option(`${step.cmd_id} (not currently advertised)`, step.cmd_id));
     }
     for (const command of definitions.commands) {
-      const option = document.createElement("option");
-      option.value = command.id;
-      option.textContent = `${localizedName(command.name, command.id)} · ${command.id}`;
-      control.append(option);
+      control.append(new Option(`${localizedName(command.name, command.id)} · ${command.id}`, command.id));
     }
     control.value = step.cmd_id || definitions.commands[0].id;
     if (!step.cmd_id) {
@@ -511,21 +649,16 @@ function renderCommandStep(step) {
       markDirty();
       renderEditor();
     });
-    select.append(control);
-    grid.append(select);
-    const command = definitions.commands.find((item) => item.id === step.cmd_id);
-    grid.append(renderCommandParameters(step, command, definitions.entity));
+    field.append(control);
+    grid.append(field);
+    grid.append(renderCommandParameters(step, definitions.commands.find((item) => item.id === step.cmd_id), definitions.entity));
   } else {
-    grid.append(
-      textField("Command ID", step.cmd_id || "", (value) => { step.cmd_id = value; }, "light.on, switch.toggle…"),
-      jsonField("Parameters (JSON)", step.params || {}, (value) => { step.params = value; }, true),
-    );
-    if (definitions?.error) {
-      const warning = document.createElement("p");
-      warning.className = "metadata-warning wide";
-      warning.textContent = `Command metadata unavailable: ${definitions.error}. Manual entry remains available.`;
-      grid.append(warning);
-    }
+    const note = document.createElement("div");
+    note.className = "read-only-note wide";
+    note.textContent = definitions?.error
+      ? `UC command metadata could not be loaded: ${definitions.error}`
+      : "This UC entity does not advertise any commands and cannot be used as a command step.";
+    grid.append(note);
   }
   wrapper.append(grid);
   return wrapper;
@@ -553,9 +686,7 @@ function renderCommandParameters(step, command, entity) {
     return holder;
   }
   step.params ||= {};
-  for (const definition of definitions) {
-    holder.append(commandParameterField(step, definition, entity));
-  }
+  for (const definition of definitions) holder.append(commandParameterField(step, definition, entity));
   const advanced = document.createElement("details");
   advanced.className = "wide advanced-params";
   const summary = document.createElement("summary");
@@ -578,18 +709,8 @@ function commandParameterField(step, definition, entity) {
   }
   if (definition.type === "enum" || definition.type === "selection") {
     input = document.createElement("select");
-    if (definition.optional) {
-      const unset = document.createElement("option");
-      unset.value = "";
-      unset.textContent = "Not set";
-      input.append(unset);
-    }
-    for (const value of values || []) {
-      const option = document.createElement("option");
-      option.value = String(value);
-      option.textContent = String(value);
-      input.append(option);
-    }
+    if (definition.optional) input.append(new Option("Not set", ""));
+    for (const value of values || []) input.append(new Option(String(value), String(value)));
     input.value = step.params[name] ?? definition.default ?? "";
     input.addEventListener("change", () => setCommandParam(step, name, input.value === "" && definition.optional ? undefined : input.value));
   } else if (definition.type === "bool") {
@@ -610,8 +731,7 @@ function commandParameterField(step, definition, entity) {
     input.placeholder = definition.optional ? "Not set" : "Required";
     input.addEventListener("input", () => {
       const raw = input.value;
-      const value = raw === "" && definition.optional ? undefined : definition.type === "number" ? Number(raw) : raw;
-      setCommandParam(step, name, value);
+      setCommandParam(step, name, raw === "" && definition.optional ? undefined : definition.type === "number" ? Number(raw) : raw);
     });
   }
   label.append(input);
@@ -631,69 +751,50 @@ function setCommandParam(step, name, value) {
 }
 
 function rangeFields(step) {
-  const wrap = document.createElement("div");
-  wrap.className = "field";
-  const label = document.createElement("span");
-  label.textContent = "Accepted HTTP status range";
+  const wrap = fieldWrap("Accepted HTTP status range");
   const row = document.createElement("div");
   row.style.display = "grid";
   row.style.gridTemplateColumns = "1fr 1fr";
   row.style.gap = "7px";
   const min = document.createElement("input");
-  min.type = "number";
-  min.min = "100";
-  min.max = "599";
-  min.value = step.status_min ?? 200;
+  min.type = "number"; min.min = "100"; min.max = "599"; min.value = step.status_min ?? 200;
   min.addEventListener("input", () => { step.status_min = Number(min.value); markDirty(); });
   const max = document.createElement("input");
-  max.type = "number";
-  max.min = "100";
-  max.max = "599";
-  max.value = step.status_max ?? 299;
+  max.type = "number"; max.min = "100"; max.max = "599"; max.value = step.status_max ?? 299;
   max.addEventListener("input", () => { step.status_max = Number(max.value); markDirty(); });
   row.append(min, max);
-  wrap.append(label, row);
+  wrap.append(row);
   return wrap;
 }
 
 function conditionGroup(group) {
   const wrapper = document.createElement("div");
   wrapper.className = "condition-list";
-  const mode = selectField("Condition mode", group.mode || "all", [
-    { value: "all", label: "All conditions must match" },
-    { value: "any", label: "Any condition may match" },
-  ], (value) => { group.mode = value; });
-  wrapper.append(mode);
-
-  (group.conditions || []).forEach((condition, index) => {
-    wrapper.append(conditionRow(condition, index, group.conditions));
-  });
-  const add = document.createElement("button");
-  add.type = "button";
-  add.className = "button ghost small";
-  add.textContent = "+ Add condition";
-  add.addEventListener("click", () => {
-    group.conditions.push(makeCondition("entity"));
-    markDirty();
-    renderEditor();
-  });
-  wrapper.append(add);
+  const toolbar = document.createElement("div");
+  toolbar.className = "condition-toolbar";
+  toolbar.append(selectField("Condition logic", group.mode || "all", [
+    { value: "all", label: "AND — all conditions must match" },
+    { value: "any", label: "OR — any condition may match" },
+  ], (value) => { group.mode = value; }));
+  const addEntity = document.createElement("button");
+  addEntity.type = "button"; addEntity.className = "button ghost small"; addEntity.textContent = "+ Entity condition";
+  addEntity.addEventListener("click", () => { group.conditions.push(makeCondition("entity")); markDirty(); renderEditor(); });
+  const addTime = document.createElement("button");
+  addTime.type = "button"; addTime.className = "button ghost small"; addTime.textContent = "+ Time condition";
+  addTime.addEventListener("click", () => { group.conditions.push(makeCondition("time")); markDirty(); renderEditor(); });
+  toolbar.append(addEntity, addTime);
+  wrapper.append(toolbar);
+  (group.conditions || []).forEach((condition, index) => wrapper.append(conditionRow(condition, index, group.conditions)));
   return wrapper;
 }
 
 function conditionRow(condition, index, conditions) {
   const row = document.createElement("div");
-  row.className = "condition-row";
-
-  const kind = selectField("Source", condition.kind || "entity", [
-    { value: "entity", label: "Entity attribute" },
+  row.className = `condition-row ${(condition.kind || "entity") === "time" ? "time" : ""}`;
+  row.append(selectField("Source", condition.kind || "entity", [
+    { value: "entity", label: "UC entity attribute" },
     { value: "time", label: "Time window" },
-  ], (value) => {
-    conditions[index] = makeCondition(value);
-    markDirty();
-    renderEditor();
-  });
-  row.append(kind);
+  ], (value) => { conditions[index] = makeCondition(value); markDirty(); renderEditor(); }));
 
   if ((condition.kind || "entity") === "time") {
     row.append(
@@ -703,23 +804,26 @@ function conditionRow(condition, index, conditions) {
     );
   } else {
     row.append(
-      entityField("Entity", condition.entity_id || "", (value) => { condition.entity_id = value; }),
-      textField("Attribute", condition.attribute || "state", (value) => { condition.attribute = value; }, "state"),
+      entityField("UC entity", condition.entity_id || "", (value) => {
+        condition.entity_id = value;
+        condition.attribute = defaultAttribute(value);
+        renderEditor();
+      }),
+      attributeField("Attribute", condition.entity_id, condition.attribute || "state", (value) => { condition.attribute = value; }),
       selectField("Operator", condition.operator || "eq", [
         "eq", "ne", "gt", "gte", "lt", "lte", "contains", "not_contains", "in", "not_in", "exists", "not_exists", "truthy", "falsy",
       ], (value) => { condition.operator = value; renderEditor(); }),
       conditionValueField(condition),
     );
   }
-
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "button danger ghost small";
   remove.textContent = "×";
   remove.title = "Remove condition";
-  remove.addEventListener("click", () => {
+  remove.addEventListener("click", async () => {
     if (conditions.length <= 1) {
-      showNotice("A condition group needs at least one condition.", "error");
+      await openMessageDialog({ title: "Condition required", message: "A condition group must contain at least one condition." });
       return;
     }
     conditions.splice(index, 1);
@@ -733,14 +837,11 @@ function conditionRow(condition, index, conditions) {
 function conditionValueField(condition) {
   const noValue = ["exists", "not_exists", "truthy", "falsy"].includes(condition.operator);
   if (noValue) {
-    const holder = document.createElement("div");
-    holder.className = "field";
-    const label = document.createElement("span");
-    label.textContent = "Value";
-    const text = document.createElement("input");
-    text.disabled = true;
-    text.placeholder = "Not required";
-    holder.append(label, text);
+    const holder = fieldWrap("Value");
+    const input = document.createElement("input");
+    input.disabled = true;
+    input.placeholder = "Not required";
+    holder.append(input);
     return holder;
   }
   return textField("Value", valueToInput(condition.value), (value) => { condition.value = parseLooseValue(value); }, "ON, 20, true…");
@@ -753,26 +854,12 @@ function branchEditor(label, key, steps, parent) {
   head.className = "branch-head";
   const title = document.createElement("strong");
   title.textContent = label;
-  const controls = document.createElement("div");
-  controls.className = "branch-controls";
-  const select = document.createElement("select");
-  for (const type of ["command", "delay", "condition", "wait", "http", "log"]) {
-    const option = document.createElement("option");
-    option.value = type;
-    option.textContent = stepLabel(type);
-    select.append(option);
-  }
   const add = document.createElement("button");
   add.type = "button";
   add.className = "button ghost small";
-  add.textContent = "Add";
-  add.addEventListener("click", () => {
-    parent[key].push(makeStep(select.value));
-    markDirty();
-    renderEditor();
-  });
-  controls.append(select, add);
-  head.append(title, controls);
+  add.textContent = "Add step";
+  add.addEventListener("click", () => openStepPicker(parent[key]));
+  head.append(title, add);
   const container = document.createElement("div");
   container.className = "steps";
   renderSteps(container, steps, key);
@@ -781,16 +868,7 @@ function branchEditor(label, key, steps, parent) {
 }
 
 function continueOnError(step) {
-  const label = document.createElement("label");
-  label.className = "check-row";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = Boolean(step.continue_on_error);
-  checkbox.addEventListener("change", () => { step.continue_on_error = checkbox.checked; markDirty(); });
-  const text = document.createElement("span");
-  text.textContent = "Continue when this step fails";
-  label.append(checkbox, text);
-  return label;
+  return checkField("Continue when this step fails", Boolean(step.continue_on_error), (checked) => { step.continue_on_error = checked; });
 }
 
 function fieldWrap(labelText) {
@@ -811,6 +889,12 @@ function textField(labelText, value, onChange, placeholder = "") {
   input.addEventListener("input", () => { onChange(input.value); markDirty(); });
   label.append(input);
   return label;
+}
+
+function valueField(labelText, value, onChange, placeholder) {
+  return textField(labelText, value == null ? "" : valueToInput(value), (raw) => {
+    onChange(raw.trim() === "" ? null : parseLooseValue(raw));
+  }, placeholder);
 }
 
 function numberField(labelText, value, onChange, min, max) {
@@ -839,10 +923,9 @@ function selectField(labelText, value, options, onChange) {
   const label = fieldWrap(labelText);
   const select = document.createElement("select");
   for (const item of options) {
-    const option = document.createElement("option");
-    option.value = typeof item === "string" ? item : item.value;
-    option.textContent = typeof item === "string" ? item : item.label;
-    select.append(option);
+    const optionValue = typeof item === "string" ? item : item.value;
+    const optionLabel = typeof item === "string" ? item : item.label;
+    select.append(new Option(optionLabel, optionValue));
   }
   select.value = value;
   select.addEventListener("change", () => { onChange(select.value); markDirty(); });
@@ -850,32 +933,92 @@ function selectField(labelText, value, options, onChange) {
   return label;
 }
 
-function entityField(labelText, value, onChange) {
+function entityField(labelText, value, onChange, { commandable = false } = {}) {
   const label = fieldWrap(labelText);
   const select = document.createElement("select");
-  if (!state.entities.length) {
-    const option = document.createElement("option");
-    option.value = value || "";
-    option.textContent = value || "Connect to the Remote to load entities";
-    select.append(option);
+  const candidates = commandable ? commandableEntities() : state.entities;
+  if (!candidates.length) {
+    const text = commandable ? "No command-capable UC entities found" : "Connect to UC Core to load entities";
+    select.append(new Option(value || text, value || ""));
+    select.disabled = true;
   } else {
-    const known = state.entities.some((entity) => entity.entity_id === value);
+    const known = candidates.some((entity) => entity.entity_id === value);
     if (value && !known) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = `${value} (not currently found)`;
-      select.append(option);
+      const suffix = isSensor(value) && commandable ? "read-only sensor" : "not currently found";
+      select.append(new Option(`${value} (${suffix})`, value));
     }
-    for (const entity of state.entities) {
-      const option = document.createElement("option");
-      option.value = entity.entity_id;
-      option.textContent = `${displayName(entity)} · ${entity.entity_type} · ${entity.entity_id}`;
-      select.append(option);
+    for (const entity of candidates) {
+      const type = entity.entity_type || "entity";
+      const readOnly = isSensor(entity) ? " · read-only" : "";
+      select.append(new Option(`${displayName(entity)} · ${type}${readOnly} · ${entity.entity_id}`, entity.entity_id));
     }
   }
   select.value = value || select.options[0]?.value || "";
   select.addEventListener("change", () => { onChange(select.value); markDirty(); });
   label.append(select);
+  return label;
+}
+
+function flattenAttributes(value, prefix = "", output = [], depth = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || depth >= 4) {
+    if (prefix) output.push({ path: prefix, value });
+    return output;
+  }
+  const entries = Object.entries(value);
+  if (!entries.length && prefix) output.push({ path: prefix, value });
+  for (const [key, child] of entries) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === "object" && !Array.isArray(child)) flattenAttributes(child, path, output, depth + 1);
+    else output.push({ path, value: child });
+  }
+  return output;
+}
+
+function defaultAttribute(entityId) {
+  const paths = flattenAttributes(findEntity(entityId)?.attributes || {});
+  return paths.some((item) => item.path === "state") ? "state" : paths[0]?.path || "state";
+}
+
+function getAttributeValue(entityId, path) {
+  let current = findEntity(entityId)?.attributes;
+  for (const part of String(path || "").split(".")) {
+    if (!part) continue;
+    if (!current || typeof current !== "object" || !(part in current)) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
+function attributeField(labelText, entityId, value, onChange) {
+  const label = fieldWrap(labelText);
+  const select = document.createElement("select");
+  const options = flattenAttributes(findEntity(entityId)?.attributes || {});
+  if (!options.some((item) => item.path === value) && value) options.unshift({ path: value, value: undefined });
+  if (!options.length) options.push({ path: value || "state", value: undefined });
+  for (const item of options) {
+    select.append(new Option(item.path, item.path));
+  }
+  select.value = value || options[0].path;
+  select.addEventListener("change", () => { onChange(select.value); markDirty(); renderEditor(); });
+  label.append(select);
+  const current = document.createElement("small");
+  current.className = "attribute-current";
+  const currentValue = getAttributeValue(entityId, select.value);
+  current.textContent = currentValue === undefined ? "Current value unavailable" : `Current: ${valueToInput(currentValue)}`;
+  label.append(current);
+  return label;
+}
+
+function checkField(text, checked, onChange) {
+  const label = document.createElement("label");
+  label.className = "check-row";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.addEventListener("change", () => { onChange(input.checked); markDirty(); });
+  const span = document.createElement("span");
+  span.textContent = text;
+  label.append(input, span);
   return label;
 }
 
@@ -886,8 +1029,7 @@ function jsonField(labelText, value, onChange, wide = false) {
   textarea.value = JSON.stringify(value, null, 2);
   textarea.addEventListener("input", () => {
     try {
-      const parsed = JSON.parse(textarea.value || "{}");
-      onChange(parsed);
+      onChange(JSON.parse(textarea.value || "{}"));
       textarea.style.borderColor = "";
       textarea.dataset.invalid = "false";
       markDirty();
@@ -902,7 +1044,7 @@ function jsonField(labelText, value, onChange, wide = false) {
 
 function valueToInput(value) {
   if (typeof value === "string") return value;
-  return JSON.stringify(value);
+  try { return JSON.stringify(value); } catch (_) { return String(value); }
 }
 
 function parseLooseValue(value) {
@@ -910,53 +1052,99 @@ function parseLooseValue(value) {
 }
 
 function cleanAutomation(automation) {
-  const copy = structuredClone(automation);
+  const copy = typeof structuredClone === "function" ? structuredClone(automation) : JSON.parse(JSON.stringify(automation));
   delete copy._new;
   return copy;
+}
+
+function validateAutomationDraft(automation) {
+  const errors = [];
+  const add = (field, msg) => errors.push({ field, msg });
+  if (!automation.name?.trim()) add("name", "Name is required");
+  if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command || "")) {
+    add("command", "UC command must use A–Z, numbers and underscores");
+  }
+  (automation.triggers || []).forEach((trigger, index) => {
+    if (!trigger.entity_id) add(`triggers.${index}.entity_id`, "Select a UC entity");
+    if (!trigger.attribute) add(`triggers.${index}.attribute`, "Select an attribute");
+  });
+  validateStepsDraft(automation.steps || [], "steps", errors);
+  if (document.querySelector('textarea[data-invalid="true"]')) add("sequence", "Fix invalid JSON fields before saving");
+  return errors;
+}
+
+function validateStepsDraft(steps, prefix, errors) {
+  steps.forEach((step, index) => {
+    const path = `${prefix}.${index}`;
+    if (step.type === "command") {
+      if (!step.entity_id) errors.push({ field: `${path}.entity_id`, msg: "Select a command-capable UC entity" });
+      else if (isSensor(step.entity_id)) errors.push({ field: `${path}.entity_id`, msg: "Sensors are read-only and cannot receive commands" });
+      if (!step.cmd_id) errors.push({ field: `${path}.cmd_id`, msg: "Select a command" });
+    } else if (step.type === "condition" || step.type === "wait") {
+      if (!Array.isArray(step.conditions) || !step.conditions.length) errors.push({ field: `${path}.conditions`, msg: "Add at least one condition" });
+      (step.conditions || []).forEach((condition, conditionIndex) => {
+        if (condition.kind === "entity") {
+          if (!condition.entity_id) errors.push({ field: `${path}.conditions.${conditionIndex}.entity_id`, msg: "Select a UC entity" });
+          if (!condition.attribute) errors.push({ field: `${path}.conditions.${conditionIndex}.attribute`, msg: "Select an attribute" });
+        }
+      });
+      if (step.type === "condition") {
+        validateStepsDraft(step.then || [], `${path}.then`, errors);
+        validateStepsDraft(step.else || [], `${path}.else`, errors);
+      }
+    } else if (step.type === "http") {
+      if (!/^https?:\/\//.test(step.url || "")) errors.push({ field: `${path}.url`, msg: "URL must start with http:// or https://" });
+    } else if (step.type === "log" && !step.message?.trim()) {
+      errors.push({ field: `${path}.message`, msg: "Log message is required" });
+    }
+  });
 }
 
 function refreshMessage(response, prefix) {
   const status = response.headers.get("X-UC-Entity-Refresh") || "unknown";
   const detail = response.headers.get("X-UC-Entity-Refresh-Message");
   const labels = {
-    refreshed: "Remote commands and pages refreshed automatically.",
-    reloaded: "Integration reloaded and Remote entity refreshed automatically.",
-    current: "Remote entity is already current.",
-    unchanged: "Remote entity definition was unchanged.",
-    "not-configured": "Add the Advanced Automations entity to the Remote to expose its commands.",
-    "api-key-required": "Run integration setup to create the Remote Core API key.",
-    "refresh-pending": "Integration reload requested; Core is still applying the new entity definition.",
-    failed: detail || "Automatic entity refresh failed.",
+    refreshed: "UC commands and pages refreshed automatically.",
+    reloaded: "The integration reloaded and the UC entity was refreshed.",
+    current: "The UC entity is already current.",
+    unchanged: "The UC entity definition was unchanged.",
+    "not-configured": "Add the UC Advanced Automations entity to the UC Remote to expose its commands.",
+    "api-key-required": "Run integration setup to create the UC Core API key.",
+    "refresh-pending": "The integration reload was requested; UC Core is still applying the entity definition.",
+    failed: detail || "Automatic UC entity refresh failed.",
   };
   return `${prefix} ${labels[status] || detail || ""}`.trim();
 }
 
-async function refreshRemoteEntity() {
+async function refreshUcEntity() {
   try {
     const result = await api("/api/integration/refresh", { method: "POST", body: "{}" });
     const message = result.message || ({
-      refreshed: "Remote commands and touchscreen pages refreshed.",
-      reloaded: "Integration connection reloaded and entity refreshed.",
-      current: "Remote entity is already current.",
-      "not-configured": "Add the Advanced Automations entity to the Remote first.",
+      refreshed: "UC commands and touchscreen pages refreshed.",
+      reloaded: "Integration connection reloaded and UC entity refreshed.",
+      current: "The UC entity is already current.",
+      "not-configured": "Add the UC Advanced Automations entity to the UC Remote first.",
     }[result.status] || `Refresh status: ${result.status}`);
-    showNotice(message, result.status === "failed" ? "error" : "success", 7000);
+    if (result.status === "failed") await showError(new ApiError(message), "UC entity refresh failed");
+    else showNotice(message, "success", 7000);
   } catch (error) {
-    showNotice(error.message, "error", 7000);
+    await showError(error, "UC entity refresh failed");
   }
 }
 
 async function saveCurrent() {
   const automation = selectedAutomation();
   if (!automation) return;
-  if (!automation.name.trim()) return showNotice("Name is required.", "error");
-  if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command)) {
-    return showNotice("Remote command must use A–Z, numbers and underscores.", "error");
+  const errors = validateAutomationDraft(automation);
+  if (errors.length) {
+    await openMessageDialog({
+      title: "Automation needs attention",
+      message: "Correct the following fields before saving.",
+      details: errors,
+      confirmLabel: "Review automation",
+    });
+    return;
   }
-  if (document.querySelector('textarea[data-invalid="true"]')) {
-    return showNotice("Fix invalid JSON before saving.", "error");
-  }
-
   try {
     const wasNew = automation._new;
     const payload = cleanAutomation(automation);
@@ -971,14 +1159,21 @@ async function saveCurrent() {
     renderAll();
     showNotice(refreshMessage(result.response, "Automation saved."));
   } catch (error) {
-    showNotice(error.message, "error", 7000);
+    await showError(error, error.status === 400 ? "Automation needs attention" : "Automation could not be saved");
   }
 }
 
 async function deleteCurrent() {
   const automation = selectedAutomation();
   if (!automation) return;
-  if (!confirm(`Delete “${automation.name}”?`)) return;
+  const confirmed = await openMessageDialog({
+    title: "Delete automation?",
+    message: `“${automation.name}” and its trigger/sequence configuration will be removed.`,
+    confirmLabel: "Delete automation",
+    showCancel: true,
+    danger: true,
+  });
+  if (!confirmed) return;
   try {
     let response = null;
     if (!automation._new) {
@@ -991,7 +1186,7 @@ async function deleteCurrent() {
     renderAll();
     showNotice(response ? refreshMessage(response, "Automation deleted.") : "Automation deleted.");
   } catch (error) {
-    showNotice(error.message, "error");
+    await showError(error, "Automation could not be deleted");
   }
 }
 
@@ -999,23 +1194,22 @@ async function runCurrent() {
   const automation = selectedAutomation();
   if (!automation) return;
   if (automation._new || state.dirty) {
-    return showNotice("Save the automation before running it.", "error");
+    await openMessageDialog({ title: "Save required", message: "Save the automation before running it." });
+    return;
   }
   try {
     const result = await api(`/api/automations/${encodeURIComponent(automation.id)}/run`, { method: "POST", body: "{}" });
     showNotice(`Run accepted: ${result.run_id}`);
     pollLogs();
   } catch (error) {
-    showNotice(error.message, "error");
+    await showError(error, "Automation could not be started");
   }
 }
 
 async function loadAutomations() {
   const data = await api("/api/automations");
   state.automations = data.automations;
-  if (!state.selectedId || !state.automations.some((item) => item.id === state.selectedId)) {
-    state.selectedId = state.automations[0]?.id || null;
-  }
+  if (!state.selectedId || !state.automations.some((item) => item.id === state.selectedId)) state.selectedId = state.automations[0]?.id || null;
   renderAll();
 }
 
@@ -1025,7 +1219,7 @@ async function loadEntities() {
     state.entities = data.entities;
     state.commandDefinitions.clear();
     if (selectedAutomation()) renderEditor();
-  } catch (error) {
+  } catch (_) {
     state.entities = [];
   }
 }
@@ -1035,8 +1229,7 @@ async function pollStatus() {
     const status = await api("/api/status");
     const badge = $("connectionBadge");
     badge.className = `status-badge ${status.core_connected ? "connected" : status.core_error ? "error" : ""}`;
-    badge.innerHTML = `<span></span>${status.core_connected ? `Connected · ${status.running} running` : status.api_key_configured ? "Not connected" : "Setup required"}`;
-    $("runtimeTarget").textContent = `Running on: ${status.runtime_name}`;
+    badge.innerHTML = `<span></span>${status.core_connected ? `UC connected · ${status.running} running` : status.api_key_configured ? "UC not connected" : "Setup required"}`;
   } catch (_) {}
 }
 
@@ -1082,11 +1275,10 @@ async function openSettings() {
   try {
     state.settings = await api("/api/settings");
     $("coreUrl").value = state.settings.core_url;
-    $("runtimeInfo").textContent = state.settings.runs_on_remote
-      ? `Embedded mode · configuration is stored on the Remote · open this interface at http://REMOTE-IP:${state.settings.web_port}`
-      : `External mode · configuration directory: ${state.settings.data_dir}`;
     $("apiKey").value = "";
-    $("apiKeyHint").textContent = state.settings.api_key_configured ? "Created during integration setup. Leave blank to keep it." : "Run integration setup to create a persistent key, or paste one manually.";
+    $("apiKeyHint").textContent = state.settings.api_key_configured
+      ? "Created during UC integration setup. Leave blank to keep it."
+      : "Run UC integration setup to create a persistent key, or paste one manually.";
     $("timezone").value = state.settings.timezone;
     $("requestTimeout").value = state.settings.request_timeout_seconds;
     $("webHost").value = state.settings.web_host;
@@ -1094,7 +1286,7 @@ async function openSettings() {
     $("settingsResult").className = "inline-result hidden";
     $("settingsDialog").showModal();
   } catch (error) {
-    showNotice(error.message, "error");
+    await showError(error, "Settings could not be loaded");
   }
 }
 
@@ -1120,21 +1312,33 @@ async function saveSettings() {
     const result = await api("/api/settings", { method: "PUT", body: JSON.stringify(settingsPayload()) });
     settingsResult(result.restart_required ? "Saved. Restart the service to apply the web host or port change." : "Settings saved.", "success");
     await pollStatus();
+    return true;
   } catch (error) {
-    settingsResult(error.message, "error");
+    await showError(error, "Settings could not be saved");
+    return false;
   }
 }
 
 async function testConnection() {
+  if (!(await saveSettings())) return;
   try {
-    await saveSettings();
     const result = await api("/api/settings/test", { method: "POST", body: "{}" });
-    settingsResult(`Connected. ${result.entity_count} configured entities found.`, "success");
+    settingsResult(`Connected. ${result.entity_count} configured UC entities found.`, "success");
     await loadEntities();
     await pollStatus();
   } catch (error) {
-    settingsResult(error.message, "error");
+    await showError(error, "UC connection test failed");
   }
+}
+
+function openStepPicker(target) {
+  state.stepTarget = target;
+  $("stepDialog").showModal();
+}
+
+function closeStepPicker() {
+  state.stepTarget = null;
+  $("stepDialog").close();
 }
 
 function setupEvents() {
@@ -1147,28 +1351,28 @@ function setupEvents() {
   $("saveSettings").addEventListener("click", saveSettings);
   $("testConnection").addEventListener("click", testConnection);
   $("clearLogView").addEventListener("click", () => { state.visibleLogs = []; renderLogs(); });
-  $("refreshEntity").addEventListener("click", refreshRemoteEntity);
+  $("refreshEntity").addEventListener("click", refreshUcEntity);
   $("addTrigger").addEventListener("click", () => {
     const automation = selectedAutomation();
     if (!automation) return;
-    automation.triggers ||= [];
     automation.triggers.push(makeTrigger());
     markDirty();
     renderEditor();
   });
   $("addRootStep").addEventListener("click", () => {
     const automation = selectedAutomation();
-    if (!automation) return;
-    automation.steps.push(makeStep($("rootStepType").value));
+    if (automation) openStepPicker(automation.steps);
+  });
+  $("closeStepDialog").addEventListener("click", closeStepPicker);
+  $("stepPicker").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-step-type]");
+    if (!button || !state.stepTarget) return;
+    state.stepTarget.push(makeStep(button.dataset.stepType));
     markDirty();
+    closeStepPicker();
     renderEditor();
   });
   bindEditorFields();
-  window.addEventListener("beforeunload", (event) => {
-    if (!state.dirty) return;
-    event.preventDefault();
-    event.returnValue = "";
-  });
 }
 
 async function init() {
@@ -1177,7 +1381,7 @@ async function init() {
     await loadAutomations();
     await Promise.allSettled([loadEntities(), pollStatus(), pollLogs()]);
   } catch (error) {
-    showNotice(error.message, "error", 0);
+    await showError(error, "UC Advanced Automations could not be loaded");
   }
   setInterval(pollStatus, 5000);
   setInterval(pollLogs, 2000);

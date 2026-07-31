@@ -1,4 +1,4 @@
-"""Background automation triggers driven by Remote Core entity-change events."""
+"""Background automation triggers driven by UC Core entity-change events."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ class TriggerManager:
                 await self._wait_or_timeout(60)
                 continue
             if not self.store.settings().api_key:
-                self._last_error = "Remote Core API key is not configured"
+                self._last_error = "UC Core API key is not configured"
                 await self._wait_or_timeout(10)
                 continue
             try:
@@ -212,11 +212,37 @@ class TriggerManager:
         last = self._last_fired.get(trigger.id)
         if last is not None and now - last < trigger.cooldown_ms / 1000:
             return
+        if binding.automation.trigger_mode == "all" and not self._all_trigger_states_match(binding.automation):
+            return
+
         self._last_fired[trigger.id] = now
-        source = f"state trigger: {trigger.entity_id}.{trigger.attribute} {old_value!r} → {new_value!r}"
+        joiner = "AND" if binding.automation.trigger_mode == "all" else "OR"
+        source = (
+            f"UC state trigger ({joiner}): {trigger.entity_id}.{trigger.attribute} "
+            f"{old_value!r} → {new_value!r}"
+        )
         result = self.engine.start(binding.automation, source=source)
         if not result.accepted:
             _LOG.info("Trigger run rejected for %s: %s", binding.automation.name, result.reason)
+
+
+    def _all_trigger_states_match(self, automation: Automation) -> bool:
+        """Return whether all enabled trigger target states currently match.
+
+        The trigger that caused evaluation must still satisfy its transition filters.
+        Other triggers act as current-state predicates using their ``to_value``. A
+        blank target means the watched attribute merely has to exist.
+        """
+        enabled = [trigger for trigger in automation.triggers if trigger.enabled]
+        if not enabled:
+            return False
+        for trigger in enabled:
+            current = _get_path(self._state.get(trigger.entity_id, {}), trigger.attribute)
+            if current is _MISSING:
+                return False
+            if trigger.to_value is not None and not compare_values(current, "eq", trigger.to_value):
+                return False
+        return True
 
     def _remove_pending(self, trigger_id: str, task: asyncio.Task[None]) -> None:
         if self._pending.get(trigger_id) is task:

@@ -82,7 +82,8 @@ class Automation(BaseModel):
     command_enabled: bool = True
     description: str = Field(default="", max_length=240)
     enabled: bool = True
-    mode: Literal["single", "parallel"] = "single"
+    mode: Literal["single", "replace", "parallel"] = "single"
+    trigger_mode: Literal["any", "all"] = "any"
     triggers: list[StateTrigger] = Field(default_factory=list)
     steps: list[dict[str, Any]] = Field(default_factory=list)
 

@@ -23,7 +23,19 @@ class FakeCore:
                 "entity_type": "switch",
                 "attributes": {"state": "OFF", "level": 5},
                 "options": {},
-            }
+            },
+            "switch.second": {
+                "entity_id": "switch.second",
+                "entity_type": "switch",
+                "attributes": {"state": "OFF"},
+                "options": {},
+            },
+            "sensor.temperature": {
+                "entity_id": "sensor.temperature",
+                "entity_type": "sensor",
+                "attributes": {"state": 21.5, "unit": "°C"},
+                "options": {},
+            },
         }
         self.commands = []
         self.listeners = {}
@@ -116,6 +128,25 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         while self.engine.running_count():
             await asyncio.sleep(0.01)
 
+    async def test_replace_mode_cancels_active_run_and_starts_new_run(self):
+        automation = Automation(
+            name="Replace",
+            command="REPLACE_RUN",
+            mode="replace",
+            steps=[{"type": "delay", "milliseconds": 80}, {"type": "log", "message": "finished"}],
+        )
+        first = self.engine.start(automation, "first")
+        await asyncio.sleep(0.01)
+        second = self.engine.start(automation, "second")
+        self.assertTrue(first.accepted)
+        self.assertTrue(second.accepted)
+        while self.engine.running_count():
+            await asyncio.sleep(0.01)
+        messages = [item["message"] for item in self.engine.logs_after(0)]
+        self.assertIn("Replacing active run", messages)
+        self.assertTrue(any(message == "Cancelled" for message in messages))
+        self.assertTrue(any(message == "finished" for message in messages))
+
 
 class TriggerTests(unittest.IsolatedAsyncioTestCase):
     async def test_state_transition_runs_background_automation(self):
@@ -156,6 +187,40 @@ class TriggerTests(unittest.IsolatedAsyncioTestCase):
                 logs = engine.logs_after(0)
                 self.assertTrue(any("state trigger" in item["message"] for item in logs))
                 self.assertTrue(any("triggered" in item["message"] for item in logs))
+            finally:
+                await manager.close()
+                await engine.close()
+
+    async def test_and_trigger_mode_requires_all_target_states(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ConfigStore(Path(directory))
+            automation = Automation(
+                name="Both on",
+                command="BOTH_ON",
+                command_enabled=False,
+                trigger_mode="all",
+                triggers=[
+                    {"entity_id": "switch.test", "to_value": "ON"},
+                    {"entity_id": "switch.second", "to_value": "ON"},
+                ],
+                steps=[{"type": "log", "message": "both matched"}],
+            )
+            store.replace_automations([automation])
+            core = FakeCore()
+            engine = AutomationEngine(core, lambda: "Europe/Berlin")
+            manager = TriggerManager(core, store, engine)
+            manager._state["switch.test"] = {"state": "OFF"}
+            manager._state["switch.second"] = {"state": "OFF"}
+            try:
+                await core.emit("entity_change", {"entity_id": "switch.test", "new_state": {"attributes": {"state": "ON"}}})
+                await asyncio.sleep(0.03)
+                self.assertFalse(any("both matched" in item["message"] for item in engine.logs_after(0)))
+                await core.emit("entity_change", {"entity_id": "switch.second", "new_state": {"attributes": {"state": "ON"}}})
+                for _ in range(50):
+                    if any("both matched" in item["message"] for item in engine.logs_after(0)):
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertTrue(any("both matched" in item["message"] for item in engine.logs_after(0)))
             finally:
                 await manager.close()
                 await engine.close()

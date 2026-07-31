@@ -13,9 +13,10 @@
       "name": "Movie Night",
       "command": "MOVIE_NIGHT",
       "command_enabled": true,
-      "description": "Starts when selected on the Remote or when the TV changes from OFF to ON.",
+      "description": "Starts from a UC command or when the TV changes from OFF to ON.",
       "enabled": true,
-      "mode": "single",
+      "mode": "replace",
+      "trigger_mode": "any",
       "triggers": [
         {
           "id": "tv-on-trigger",
