@@ -1,4 +1,4 @@
-"""Integration-API setup flow for UC Core authentication."""
+"""Integration-API setup flow for Remote authentication."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ SettingsChangedCallback = Callable[[], None]
 
 
 class RemoteApiSetupFlow:
-    """Collect a UC Remote PIN and exchange it for a persistent API key."""
+    """Collect a Remote PIN and exchange it for a persistent API key."""
 
     def __init__(
         self,
@@ -57,13 +57,13 @@ class RemoteApiSetupFlow:
         settings = self._store.settings()
         has_key = bool(settings.api_key)
         description = (
-            "Enter the UC Remote address and the Web Configurator PIN shown on the UC Remote. "
+            "Enter the Remote address and the Web Configurator PIN shown on the Remote. "
             "Advanced Automations authenticates as `web-configurator`, creates a persistent "
             "admin API key, stores only that key, and immediately discards the PIN."
         )
         if has_key:
             description += (
-                " Leave the PIN empty to keep the existing API key when the UC Remote address "
+                " Leave the PIN empty to keep the existing API key when the Remote address "
                 "has not changed, or enter a PIN to create a replacement key."
             )
 
@@ -80,12 +80,12 @@ class RemoteApiSetupFlow:
             [
                 {
                     "id": "info",
-                    "label": {"en": "UC API access"},
+                    "label": {"en": "Remote API access"},
                     "field": {"label": {"value": {"en": description}}},
                 },
                 {
                     "id": "remote_address",
-                    "label": {"en": "UC Remote IP address or hostname"},
+                    "label": {"en": "Remote IP address or hostname"},
                     "field": {
                         "text": {
                             "value": setup_address_from_core_url(settings.core_url),
@@ -106,7 +106,7 @@ class RemoteApiSetupFlow:
             ]
         )
         return ucapi.RequestUserInput(
-            title={"en": "UC API authentication"},
+            title={"en": "Remote API authentication"},
             settings=page_settings,
         )
 
@@ -139,14 +139,14 @@ class RemoteApiSetupFlow:
                 )
             except RemoteAuthError as err:
                 _LOG.warning(
-                    "UC persistent API-key creation failed: category=%s status=%s",
+                    "Persistent Remote API-key creation failed: category=%s status=%s",
                     err.code,
                     err.status,
                 )
                 return self._input_page(str(err))
         elif not api_key or not current_address_matches:
             return self._input_page(
-                "Enter the Web Configurator PIN to create an API key for this UC Remote."
+                "Enter the Web Configurator PIN to create an API key for this Remote."
             )
         else:
             endpoints = requested_endpoints
@@ -163,7 +163,7 @@ class RemoteApiSetupFlow:
             try:
                 self._on_settings_changed()
             except Exception:  # pragma: no cover - setup must remain completed after persistence
-                _LOG.exception("UC API settings were saved, but runtime reload failed")
-        _LOG.info("UC API access configured with a persistent API key")
+                _LOG.exception("Remote API settings were saved, but runtime reload failed")
+        _LOG.info("Remote API access configured with a persistent API key")
         return ucapi.SetupComplete()
 

@@ -83,9 +83,23 @@ class Automation(BaseModel):
     description: str = Field(default="", max_length=240)
     enabled: bool = True
     mode: Literal["single", "replace", "parallel"] = "single"
+    entity_ids: list[str] = Field(default_factory=list)
     trigger_mode: Literal["any", "all"] = "any"
     triggers: list[StateTrigger] = Field(default_factory=list)
     steps: list[dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_entity_selection(cls, value: Any) -> Any:
+        """Populate the entity-selection step for configurations created before v0.5."""
+        if not isinstance(value, dict):
+            return value
+        migrated = dict(value)
+        if "entity_ids" not in migrated or migrated.get("entity_ids") is None:
+            migrated["entity_ids"] = collect_entity_ids(
+                migrated.get("triggers", []), migrated.get("steps", [])
+            )
+        return migrated
 
     @field_validator("command")
     @classmethod
@@ -95,6 +109,21 @@ class Automation(BaseModel):
             raise ValueError("command must contain only A-Z, 0-9 and underscores")
         return value
 
+    @field_validator("entity_ids")
+    @classmethod
+    def validate_entity_ids(cls, value: list[str]) -> list[str]:
+        result: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            entity_id = str(item).strip()
+            if not entity_id or entity_id in seen:
+                continue
+            if len(entity_id) > 160:
+                raise ValueError("entity identifiers must contain at most 160 characters")
+            seen.add(entity_id)
+            result.append(entity_id)
+        return result
+
     @field_validator("steps")
     @classmethod
     def validate_steps(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -103,10 +132,18 @@ class Automation(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def unique_trigger_ids(self) -> "Automation":
+    def validate_automation_relationships(self) -> "Automation":
         trigger_ids = [trigger.id for trigger in self.triggers]
         if len(trigger_ids) != len(set(trigger_ids)):
             raise ValueError("trigger ids must be unique within an automation")
+
+        referenced = set(collect_entity_ids(self.triggers, self.steps))
+        selected = set(self.entity_ids)
+        missing = sorted(referenced - selected)
+        if missing:
+            raise ValueError(
+                "select every referenced entity in the Entities step: " + ", ".join(missing)
+            )
         return self
 
 
@@ -125,6 +162,40 @@ class AppConfig(BaseModel):
         if len(commands) != len(set(commands)):
             raise ValueError("enabled automation commands must be unique")
         return self
+
+
+def collect_entity_ids(triggers: Any, steps: Any) -> list[str]:
+    """Collect referenced entity identifiers while preserving first-use order."""
+    result: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        if isinstance(value, str) and value.strip() and value not in seen:
+            seen.add(value)
+            result.append(value)
+
+    for trigger in triggers or []:
+        if isinstance(trigger, StateTrigger):
+            add(trigger.entity_id)
+        elif isinstance(trigger, dict):
+            add(trigger.get("entity_id"))
+
+    def walk(items: Any) -> None:
+        for step in items or []:
+            if not isinstance(step, dict):
+                continue
+            if step.get("type") == "command":
+                add(step.get("entity_id"))
+            if step.get("type") in {"condition", "wait"}:
+                for condition in step.get("conditions", []) or []:
+                    if isinstance(condition, dict) and condition.get("kind", "entity") == "entity":
+                        add(condition.get("entity_id"))
+            if step.get("type") == "condition":
+                walk(step.get("then", []))
+                walk(step.get("else", []))
+
+    walk(steps)
+    return result
 
 
 def validate_step(step: dict[str, Any], path: str = "step") -> None:
@@ -151,10 +222,10 @@ def validate_step(step: dict[str, Any], path: str = "step") -> None:
     elif step_type == "condition":
         validate_condition_group(step, path)
         for branch in ("then", "else"):
-            steps = step.get(branch, [])
-            if not isinstance(steps, list):
+            branch_steps = step.get(branch, [])
+            if not isinstance(branch_steps, list):
                 raise ValueError(f"{path}.{branch} must be an array")
-            for index, child in enumerate(steps):
+            for index, child in enumerate(branch_steps):
                 validate_step(child, f"{path}.{branch}[{index}]")
 
     elif step_type == "wait":

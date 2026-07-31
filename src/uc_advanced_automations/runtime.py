@@ -30,7 +30,7 @@ class RuntimeEnvironment:
 
     @property
     def display_name(self) -> str:
-        return "UC Remote" if self.runs_on_remote else "External"
+        return "Remote" if self.runs_on_remote else "External"
 
     def apply_process_environment(self, integration_port: int = 9090) -> None:
         """Apply target-specific defaults before ``ucapi`` initializes.
@@ -49,10 +49,10 @@ class RuntimeEnvironment:
 
 
 def detect_runtime() -> RuntimeEnvironment:
-    """Detect UC Remote installation or external service operation.
+    """Detect Remote installation or external service operation.
 
     Explicit ``UC_RUNTIME_MODE`` wins. External deployments should set
-    ``UC_EXTERNAL=true``. A UC Remote custom integration receives ``UC_CONFIG_HOME``;
+    ``UC_EXTERNAL=true``. A Remote custom integration receives ``UC_CONFIG_HOME``;
     this is used as the embedded-mode signal when no explicit mode is supplied.
     """
 
@@ -88,7 +88,7 @@ def detect_runtime() -> RuntimeEnvironment:
         raise ValueError("UC_AUTOMATIONS_WEB_PORT must be an integer") from err
     if web_port > 65535:
         raise ValueError("UC_AUTOMATIONS_WEB_PORT must be between 9201 and 65535")
-    # Normalize legacy container overrides from the UC-reserved range. New
+    # Normalize legacy container overrides from the Integration API reserved range. New
     # settings submitted through the API are still rejected by the model.
     if web_port < 9201:
         web_port = 9201

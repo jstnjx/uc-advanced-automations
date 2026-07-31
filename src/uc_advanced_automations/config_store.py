@@ -107,17 +107,17 @@ class ConfigStore:
             return False
         settings["web_port"] = self.runtime.web_port
         _LOG.info(
-            "Migrating persisted UC-reserved editor port from %d to %d",
+            "Migrating persisted Integration API reserved editor port from %d to %d",
             current,
             self.runtime.web_port,
         )
         return True
 
     def _migrate_reserved_web_port(self) -> bool:
-        """Move legacy or UC-reserved editor ports to the current safe default.
+        """Move legacy or Integration API reserved editor ports to the current safe default.
 
         Versions through 0.3.4 used port 8099 or an Integration-API-plus-10000
-        companion port. Ports 8000-9200 are reserved for UC services, so every
+        companion port. Ports 8000-9200 are reserved for Integration API services, so every
         persisted editor port in that range is migrated to 9201. The former
         automatically selected companion port is migrated as well. Explicit
         custom ports above 9200 are preserved.
@@ -140,7 +140,7 @@ class ConfigStore:
 
         self._config.settings = self._config.settings.model_copy(update={"web_port": requested})
         _LOG.info(
-            "Migrated editor web port from %d to %d to avoid the UC-reserved range",
+            "Migrated editor web port from %d to %d to avoid the Integration API reserved range",
             current,
             requested,
         )

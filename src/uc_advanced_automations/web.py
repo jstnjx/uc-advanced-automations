@@ -226,6 +226,7 @@ async def get_automations(request: web.Request) -> web.Response:
 async def create_automation(request: web.Request) -> web.Response:
     store: ConfigStore = request.app["store"]
     automation = Automation.model_validate(await request.json())
+    _validate_automation_rules(automation)
     await _validate_command_targets(request, automation)
 
     def mutate(config):
@@ -244,6 +245,7 @@ async def update_automation(request: web.Request) -> web.Response:
     body = await request.json()
     body["id"] = automation_id
     automation = Automation.model_validate(body)
+    _validate_automation_rules(automation)
     await _validate_command_targets(request, automation)
     found = False
 
@@ -308,9 +310,9 @@ async def _apply_runtime_changes(request: web.Request) -> dict[str, Any]:
 
 
 def _set_refresh_headers(response: web.StreamResponse, refresh: dict[str, Any]) -> None:
-    response.headers["X-UC-Entity-Refresh"] = str(refresh.get("status", "unknown"))
+    response.headers["X-Entity-Refresh"] = str(refresh.get("status", "unknown"))
     if refresh.get("message"):
-        response.headers["X-UC-Entity-Refresh-Message"] = str(refresh["message"])[:500]
+        response.headers["X-Entity-Refresh-Message"] = str(refresh["message"])[:500]
 
 
 def _display_name(entity: dict[str, Any]) -> str:
@@ -341,13 +343,29 @@ def _validation_details(err: ValidationError) -> list[dict[str, Any]]:
     return details
 
 
-async def _validate_command_targets(request: web.Request, automation: Automation) -> None:
-    """Reject command steps aimed at UC sensor entities.
+def _validate_automation_rules(automation: Automation) -> None:
+    """Apply user-facing rules that remain backward-compatible during config loading."""
+    details: list[dict[str, Any]] = []
+    if not automation.steps:
+        details.append(
+            {
+                "loc": ["steps"],
+                "field": "steps",
+                "msg": "Add at least one sequence step",
+                "type": "sequence_required",
+            }
+        )
+    if details:
+        raise AutomationValidationError(details)
 
-    Sensors expose state data but no commands. The UI filters them out, while this
-    server-side check protects imported or stale automation payloads. Validation is
-    skipped only when UC Core is unavailable, because the structural model still
-    validates the command itself.
+
+async def _validate_command_targets(request: web.Request, automation: Automation) -> None:
+    """Reject command steps aimed at sensor entities.
+
+    Sensors expose state data but no commands. The interface filters them out, while
+    this server-side check protects imported or stale automation payloads. Validation
+    is skipped only when the Remote API is unavailable, because structural validation
+    still checks the command payload.
     """
     command_steps = list(_walk_command_steps(automation.steps))
     if not command_steps:

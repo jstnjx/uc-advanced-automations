@@ -1,4 +1,4 @@
-"""Background automation triggers driven by UC Core entity-change events."""
+"""Background automation triggers driven by Remote entity-change events."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ class TriggerManager:
                 await self._wait_or_timeout(60)
                 continue
             if not self.store.settings().api_key:
-                self._last_error = "UC Core API key is not configured"
+                self._last_error = "Remote API key is not configured"
                 await self._wait_or_timeout(10)
                 continue
             try:
@@ -218,7 +218,7 @@ class TriggerManager:
         self._last_fired[trigger.id] = now
         joiner = "AND" if binding.automation.trigger_mode == "all" else "OR"
         source = (
-            f"UC state trigger ({joiner}): {trigger.entity_id}.{trigger.attribute} "
+            f"State trigger ({joiner}): {trigger.entity_id}.{trigger.attribute} "
             f"{old_value!r} → {new_value!r}"
         )
         result = self.engine.start(binding.automation, source=source)

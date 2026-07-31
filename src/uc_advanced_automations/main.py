@@ -32,7 +32,7 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     _LOG.info(
-        "Starting Advanced Automations v0.4.0: runtime=%s data_dir=%s web=%s:%d "
+        "Starting Advanced Automations v0.5.0: runtime=%s data_dir=%s web=%s:%d "
         "integration=%s:%s mdns_disabled=%s",
         runtime.mode,
         store.data_dir,
@@ -78,7 +78,7 @@ async def run() -> None:
 
     @api.listens_to(ucapi.Events.DISCONNECT)
     async def on_disconnect() -> None:
-        _LOG.info("UC Remote disconnected from integration")
+        _LOG.info("Remote disconnected from integration")
 
     setup_flow = RemoteApiSetupFlow(
         store,

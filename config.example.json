@@ -13,9 +13,13 @@
       "name": "Movie Night",
       "command": "MOVIE_NIGHT",
       "command_enabled": true,
-      "description": "Starts from a UC command or when the TV changes from OFF to ON.",
+      "description": "Starts from a Remote command or when the TV changes from OFF to ON.",
       "enabled": true,
       "mode": "replace",
+      "entity_ids": [
+        "media_player.tv",
+        "switch.living_room_power"
+      ],
       "trigger_mode": "any",
       "triggers": [
         {

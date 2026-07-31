@@ -11,6 +11,7 @@ from unittest.mock import patch
 from uc_advanced_automations.config_store import ConfigStore
 from uc_advanced_automations.core_client import CoreClient
 from uc_advanced_automations.engine import AutomationEngine, compare_values
+from uc_advanced_automations.integration import IntegrationController, LAST_TRIGGERED_SENSOR_ID
 from uc_advanced_automations.models import Automation
 from uc_advanced_automations.triggers import TriggerManager
 
@@ -185,7 +186,7 @@ class TriggerTests(unittest.IsolatedAsyncioTestCase):
                         break
                     await asyncio.sleep(0.01)
                 logs = engine.logs_after(0)
-                self.assertTrue(any("state trigger" in item["message"] for item in logs))
+                self.assertTrue(any("state trigger" in item["message"].lower() for item in logs))
                 self.assertTrue(any("triggered" in item["message"] for item in logs))
             finally:
                 await manager.close()
@@ -250,6 +251,78 @@ class TriggerTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 await manager.close()
                 await engine.close()
+
+
+class IntegrationEntityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_last_triggered_sensor_updates_when_run_is_accepted(self):
+        import ucapi
+        from ucapi import sensor
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = ConfigStore(Path(directory))
+            core = FakeCore()
+            engine = AutomationEngine(core, lambda: "Europe/Berlin")
+            api = ucapi.IntegrationAPI()
+            controller = IntegrationController(api, store, engine, core)
+            controller.sync_entity()
+            entity = api.available_entities.get(LAST_TRIGGERED_SENSOR_ID)
+            self.assertIsNotNone(entity)
+            self.assertEqual(entity.attributes[sensor.Attributes.VALUE], "No automation triggered yet")
+
+            automation = Automation(
+                name="Morning scene",
+                command="MORNING_SCENE",
+                steps=[{"type": "log", "message": "started"}],
+            )
+            result = engine.start(automation, "test")
+            self.assertTrue(result.accepted)
+            self.assertEqual(
+                api.available_entities.get(LAST_TRIGGERED_SENSOR_ID).attributes[sensor.Attributes.VALUE],
+                "Morning scene",
+            )
+            while engine.running_count():
+                await asyncio.sleep(0.01)
+            await engine.close()
+
+
+class AutomationSelectionTests(unittest.TestCase):
+    def test_legacy_automation_derives_selected_entities(self):
+        automation = Automation.model_validate(
+            {
+                "name": "Legacy",
+                "command": "LEGACY_FLOW",
+                "triggers": [{"entity_id": "sensor.room", "attribute": "value"}],
+                "steps": [
+                    {
+                        "type": "command",
+                        "entity_id": "switch.room",
+                        "cmd_id": "on",
+                        "params": {},
+                    }
+                ],
+            }
+        )
+        self.assertEqual(automation.entity_ids, ["sensor.room", "switch.room"])
+
+    def test_explicit_empty_selection_does_not_override_user_choice(self):
+        from pydantic import ValidationError
+
+        with self.assertRaises(ValidationError):
+            Automation.model_validate(
+                {
+                    "name": "Invalid selection",
+                    "command": "INVALID_SELECTION",
+                    "entity_ids": [],
+                    "steps": [
+                        {
+                            "type": "command",
+                            "entity_id": "switch.room",
+                            "cmd_id": "on",
+                            "params": {},
+                        }
+                    ],
+                }
+            )
 
 
 class ConfigStoreTests(unittest.TestCase):

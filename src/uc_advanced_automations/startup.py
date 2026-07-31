@@ -39,9 +39,9 @@ async def initialize_integration_api(
 
 
 def _web_port_candidates(requested_port: int, integration_port: int) -> list[int]:
-    """Return ordered editor-port candidates outside the UC-reserved range.
+    """Return ordered editor-port candidates outside the Integration API reserved range.
 
-    Ports 8000-9200 are reserved for UC Integration API services. The editor
+    Ports 8000-9200 are reserved for Integration API services. The editor
     therefore starts at 9201 or the explicitly requested higher port and scans
     upward on conflicts without ever selecting a reserved port.
     """

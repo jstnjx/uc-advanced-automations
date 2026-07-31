@@ -1,292 +1,208 @@
-# UC Advanced Automations
+# Advanced Automations
 
-A dual-target integration for **UC Remote Two and UC Remote 3**. The same codebase can run:
+Advanced Automations is a visual automation engine for **Unfolded Circle Remote Two** and **Remote 3**. It can run as an ARM64 custom integration on the Remote or as an external container managed by an external integration installer.
 
-- **directly on the UC Remote** as an ARM64 custom integration package; or
-- **externally** on a server, VM, NAS, Raspberry Pi or Docker host.
-
-It exposes one virtual **UC Advanced Automations** entity and provides a simple web interface for building conditional sequences.
+The integration combines entity-state triggers, conditions, commands, delays, HTTP requests and log actions in one local workflow editor.
 
 ## Features
 
-- Sequential commands across configured UC entities
-- Background entity state-change triggers with selectable attributes and from/to filters
-- OR / AND trigger logic
-- Trigger stabilization (debounce) and cooldown controls
-- Command IDs and typed parameters discovered from Core command metadata
-- Delays
-- Nested **if / else** branches
-- **All / any** condition groups
-- Entity attribute comparisons
-- Time-window conditions, including windows crossing midnight
-- **Wait until** with timeout and polling interval
-- HTTP requests for local webhooks and APIs
-- Per-step **continue on error**
-- Single, replace, or parallel execution mode
+- Four-step automation editor:
+  1. Automation details
+  2. Entity selection
+  3. Trigger definition
+  4. Sequence definition
 - Drag-and-drop trigger and sequence ordering
-- Modal validation prompts and run history
-- Atomic JSON persistence with file mode `0600`
-- Generated commands and touchscreen buttons on the UC Remote
-- Automatic entity definition refresh after command or page changes
-- One portable configuration format for embedded and external operation
+- Nested if/else sequences and wait-until steps
+- Any-trigger and all-target-states trigger behavior with plain-language descriptions
+- Single, Replace and Parallel run modes
+- Read-only sensor support for triggers and conditions
+- Command metadata and typed parameter controls for controllable entities
+- Raw JSON editor for complete automation access
+- Blueprint export, import and entity mapping for sharing automations
+- Structured validation dialogs instead of browser alerts
+- Saving overlay with a blurred backdrop
+- Run history in the web interface
+- A **Last automation triggered** sensor entity
+- Persistent Remote API-key creation during integration setup
 
-No arbitrary Python, JavaScript or template expressions are evaluated. Conditions use a fixed set of operators.
+## Why the raw editor uses JSON
 
-## Runtime modes
+JSON is the integration's native persisted format. Using JSON keeps the raw editor and the stored automation schema identical, avoids YAML implicit type conversions, and does not require a second parser or conversion layer. The visual editor remains the recommended interface; the raw editor is intended for precise review and advanced changes.
 
-Runtime mode is detected automatically:
+## Automation editor
 
-| Target | Detection | Core API default | Configuration directory |
-|---|---|---|---|
-| UC Remote Two/3 | `UC_CONFIG_HOME` is supplied by the UC Remote | `ws://127.0.0.1/ws` | Remote-managed `UC_CONFIG_HOME` |
-| External | `UC_EXTERNAL=true`, or no Remote environment is present | `ws://remote.local/ws` | `~/.config/uc-advanced-automations` |
+Open the web interface and create an automation through the guided flow.
 
-`UC_RUNTIME_MODE=remote` or `UC_RUNTIME_MODE=external` can explicitly override detection.
+### 1. Automation details
 
-The integration uses two listeners:
+Configure:
 
-| Service | Default port | Purpose |
-|---|---:|---|
-| Integration API | `9090` | Connection from UC Remote Two/3 |
-| Web interface | `9201` | Automation editor |
+- Name and description
+- Optional Remote command
+- Enabled state
+- Whether the automation appears as a Remote command and touchscreen button
+- Run mode:
+  - **Single:** ignore a new start while the automation is active
+  - **Replace:** cancel the active run and restart from the beginning
+  - **Parallel:** allow simultaneous runs
 
-## Installation on UC Remote Two/3
+### 2. Choose entities
 
-Use the ARM64 release archive named similar to:
+Select the entities available to the automation. Existing configurations created before v0.5.0 are migrated automatically by collecting their referenced entities.
 
-```text
-uc-intg-advanced-automations-v0.4.0-aarch64.tar.gz
-```
+Sensors remain selectable for triggers and conditions but are never offered as command targets.
 
-Do not extract it.
+### 3. Define triggers
 
-1. Open the UC Remote Web Configurator.
-2. Go to **Integrations**.
-3. Select **Add new** → **Install custom**.
-4. Upload the `.tar.gz` archive.
-5. Open **Advanced Automations** and start setup.
-6. Enter the UC Remote address and the current **Web Configurator PIN**.
-7. The integration creates and stores a persistent `admin` API key, then discards the PIN.
-8. Open `http://REMOTE-IP:9201` in a browser and create automations.
+An automation may start when:
 
-In embedded mode, the integration connects back to the local UC Core API through `ws://127.0.0.1/ws`. Configuration remains on the UC Remote in its integration-managed data directory.
+- Any enabled trigger matches; or
+- The changed trigger matches and every enabled trigger's current target state is true.
 
-### Build the UC Remote package
+Each trigger can select an entity attribute, optional previous and target values, debounce time and cooldown time.
 
-The embedded package must be built for ARM64. The included GitHub Actions workflow uses the official Unfolded Circle ARM64 PyInstaller image and produces the correct custom-integration archive layout:
+### 4. Define sequence
 
-```text
-bin/
-  driver
-  ... bundled libraries
-driver.json
-advanced-automations.png
-version.txt
-```
+Available steps:
 
-On an ARM64 Linux system:
+- **Entity:** send a supported command to a controllable entity
+- **Delay:** pause execution
+- **If / else:** branch using entity or time conditions
+- **Wait until:** pause until conditions match or a timeout occurs
+- **HTTP request:** call an HTTP or HTTPS endpoint
+- **Log message:** write a diagnostic run-log entry
 
-```bash
-python -m pip install -r requirements-build.txt
-make build-remote
-```
+Root steps, triggers and nested branch steps support drag-and-drop ordering.
 
-On x86-64, use the included GitHub Actions workflow. The build script refuses to create a Remote archive from an x86-64 runtime, and CI verifies that `bin/driver` is an ARM64 ELF executable before publishing it.
+## Automation blueprints
 
-The Python wheel produced by the external build is for server/native deployment. It is **not** a UC Remote custom-install package and cannot be uploaded through **Install custom**.
+The **Blueprint** dialog exports the current automation as a portable JSON file. Entity identifiers are replaced with mapping slots. When importing the blueprint on another installation, each slot is mapped to a local entity before the automation is created.
 
-## Prebuilt GHCR image
+Blueprints contain:
 
-The workflow publishes a multi-architecture image for `linux/amd64` and `linux/arm64`:
+- Format and schema version
+- Name, description and export timestamp
+- Required entity slots and command-target requirements
+- The complete automation template
 
-```text
-ghcr.io/jstnjx/uc-advanced-automations
-```
+API keys, connection settings and other installation credentials are never included.
 
-Release tags publish version aliases and `latest`. Pushes to `main` publish the `main` and commit-SHA tags.
+## Last automation triggered sensor
 
-```bash
-docker pull ghcr.io/jstnjx/uc-advanced-automations:latest
-docker run -d \
-  --name uc-advanced-automations \
-  --restart unless-stopped \
-  --network host \
-  -v "$PWD/data:/data" \
-  ghcr.io/jstnjx/uc-advanced-automations:latest
-```
+The integration exposes a sensor named **Last automation triggered**. Its value is updated whenever an automation run is accepted, regardless of whether the run was started from a trigger, the Remote or the web interface.
 
-## External installation with Docker Compose
+## Remote authentication setup
 
-```bash
-unzip uc-advanced-automations.zip
-cd uc-advanced-automations
-docker compose up -d --build
-```
+During the integration setup flow:
 
-Open:
+1. Enter the Remote address.
+2. Enter the current Web Configurator PIN.
+3. The integration authenticates as `web-configurator` and creates an `admin`-scoped persistent API key through the official Core REST API.
+4. The returned one-time API key is stored in the private configuration file.
+5. The submitted PIN is discarded and is never persisted.
+
+When reconfiguring the same Remote, an empty PIN keeps the existing API key. Entering a PIN creates a replacement key.
+
+## External service installation
+
+The project includes a Dockerfile compatible with external integration installers.
+
+Runtime behavior:
+
+- Host networking for direct access to the Remote
+- Persistent configuration mounted at `/config` by the installer
+- Integration API port assigned by the installer in its reserved range
+- Web editor starting at port **9201** and scanning upward if occupied
+- Integration discovery publishing disabled by default for managed external containers
+
+After installation, open:
 
 ```text
 http://SERVER-IP:9201
 ```
 
-Then:
-
-1. Add or register the **Advanced Automations** integration in the Web Configurator.
-2. Start the integration setup flow.
-3. Enter the UC Remote IP address or hostname and the current **Web Configurator PIN**.
-4. The integration authenticates as `web-configurator`, creates a persistent `admin` API key, stores it in its private configuration, and discards the PIN.
-5. Open the automation editor and select **Test connection**.
-6. Create an automation and save it.
-7. Add its UC entity to a profile or activity.
-
-Docker host networking is used for direct LAN access. Integration mDNS publishing is disabled by default in external mode because managed integrations are registered explicitly with the UC Remote.
-
-### UC External Integration Installer
-
-When installed through `uc-external-integration-installer`, the container follows the installer's runtime contract:
-
-- persistent configuration uses the installer's `/config` mount;
-- the Integration API listens on the port assigned by the installer in the UC-reserved `8000`–`9200` range;
-- the automation editor starts at `9201`, outside that reserved range;
-- `UC_AUTOMATIONS_WEB_PORT` can select another port from `9201` through `65535`;
-- if the selected editor port is occupied, the integration scans upward (`9202`, `9203`, …) until a free port is found.
-
-The selected editor port is printed as `AUTOMATION EDITOR URL` in the container log, written to `/config/web-port.txt`, and returned by `/api/health` and `/api/status`.
-
-## External native installation
-
-Requires Python 3.11 or newer.
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install .
-export UC_EXTERNAL=true
-export UC_AUTOMATIONS_DATA_DIR="$PWD/data"
-uc-advanced-automations
-```
-
-The included systemd unit assumes:
-
-- application: `/opt/uc-advanced-automations`
-- virtual environment: `/opt/uc-advanced-automations/.venv`
-- service account: `uc-automations`
-- data directory: `/var/lib/uc-advanced-automations`
-
-## Core API authentication
-
-Both targets use the UC Core API to read entity state and execute commands. During the Integration-API setup flow, Advanced Automations asks for the UC Remote address and Web Configurator PIN. It sends a single authenticated request as `web-configurator` to `POST /api/auth/api_keys` with the key name `Advanced Automations` and the `admin` scope. The one-time `api_key` returned by the UC Remote is stored immediately; the PIN is never written to configuration or logs.
-
-Reconfiguring the same UC Remote can keep the existing key by leaving the PIN empty. Entering a PIN creates a replacement key. The Settings dialog retains a manual API-key field for recovery and advanced deployments.
-
-The API key is stored in `config.json` with owner-only file permissions. It is not encrypted. Do not expose port `9201` directly to the internet.
-
-## Step types
-
-### Device command
-
-```json
-{
-  "type": "command",
-  "entity_id": "media_player.living_room_tv",
-  "cmd_id": "select_source",
-  "params": {
-    "source": "HDMI 1"
-  }
-}
-```
-
-The web editor queries the UC Core command metadata for the selected entity. It presents only advertised commands and creates typed controls for number, boolean, enum, regex and entity-backed selection parameters. Entities that do not advertise commands are presented as read-only. Sensor entities are never offered as command targets.
-
-
-### Background state trigger
-
-An automation can be triggered by a UC command, an entity transition, or both. A state trigger watches one attribute and optionally filters its previous and new values:
-
-```json
-{
-  "type": "entity_state",
-  "entity_id": "switch.living_room_power",
-  "attribute": "state",
-  "from_value": "OFF",
-  "to_value": "ON",
-  "debounce_ms": 500,
-  "cooldown_ms": 5000
-}
-```
-
-A blank `from_value` or `to_value` matches any value. `debounce_ms` requires the new value to remain stable before execution; `cooldown_ms` prevents repeated runs. The integration subscribes to UC Core entity-change events and reconnects automatically while enabled triggers exist.
-
-Trigger logic can be set per automation:
-
-- **OR** starts the automation when any enabled trigger matches its transition filters.
-- **AND** requires the triggering transition to match and every enabled trigger's current target state to satisfy its configured `to_value`. A blank `to_value` requires that attribute to exist.
-
-Run modes determine what happens when an automation is started while already active:
-
-- **Single** ignores the new run.
-- **Replace** cancels the active run and starts from the beginning.
-- **Parallel** allows multiple simultaneous runs.
-
-### Condition
-
-Conditions read the latest entity state from the UC Core API. Attribute paths use dot notation, for example `state`, `volume`, or `media.title`.
-
-Supported operators:
+The selected editor port is also written to:
 
 ```text
-eq, ne, gt, gte, lt, lte,
-contains, not_contains, in, not_in,
-exists, not_exists, truthy, falsy
+/config/web-port.txt
 ```
 
-A condition step contains nested `then` and `else` sequences.
+### Docker Compose
 
-### Wait until
+```bash
+docker compose up -d --build
+```
 
-Repeatedly evaluates a condition group until it matches or its timeout expires.
+The included Compose configuration uses host networking and stores data in a named volume.
 
-### HTTP request
+## Custom integration package
 
-Useful for Home Assistant webhooks, Tasmota commands, Node-RED endpoints and other local services. Accepted HTTP status codes are configurable.
+Build the ARM64 package in an ARM64 environment or through GitHub Actions:
 
-## Environment variables
+```bash
+bash ./tools/build_remote.sh aarch64
+```
 
-| Variable | Default | Description |
+The generated archive uses this pattern:
+
+```text
+uc-intg-advanced-automations-v0.5.0-aarch64.tar.gz
+```
+
+Verify an archive before installation:
+
+```bash
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v0.5.0-aarch64.tar.gz
+```
+
+The Python wheel is for external/server deployment and is not a custom integration archive.
+
+## Web API
+
+Important endpoints:
+
+| Method | Endpoint | Purpose |
 |---|---|---|
-| `UC_RUNTIME_MODE` | auto | Force `remote` or `external` mode |
-| `UC_EXTERNAL` | unset | Set to `true` for external deployments |
-| `UC_CONFIG_HOME` | supplied by UC Remote | UC Remote-managed configuration directory |
-| `UC_AUTOMATIONS_DATA_DIR` | target-specific | Override persistent configuration directory; installer-managed containers default to `/config` |
-| `UC_CORE_URL` | target-specific | Override the initial Core WebSocket URL |
-| `UC_AUTOMATIONS_WEB_HOST` | `0.0.0.0` | Initial web interface bind address |
-| `UC_AUTOMATIONS_WEB_PORT` | `9201` | Preferred web interface port; must be 9201 or higher and scans upward if occupied |
-| `UC_INTEGRATION_INTERFACE` | all interfaces | Integration API bind address |
-| `UC_INTEGRATION_HTTP_PORT` | `9090` | Integration API port |
-| `UC_DISABLE_MDNS_PUBLISH` | external: `true`; UC Remote: `false` | Disable integration mDNS advertisement |
+| `GET` | `/api/health` | Container liveness and service diagnostics |
+| `GET` | `/api/status` | Connection, trigger and run status |
+| `GET` | `/api/entities` | Available entities and current attributes |
+| `GET` | `/api/entities/{id}/commands` | Command metadata for an entity |
+| `GET` | `/api/automations` | List automations |
+| `POST` | `/api/automations` | Create an automation |
+| `PUT` | `/api/automations/{id}` | Update an automation |
+| `DELETE` | `/api/automations/{id}` | Delete an automation |
+| `POST` | `/api/automations/{id}/run` | Start an automation |
+| `POST` | `/api/integration/refresh` | Refresh generated entities and commands |
 
-The web host and port are persisted after first start. Changing them in the web interface requires a restart.
+Invalid automation payloads return HTTP `400` with JSON-safe field details. They do not produce an internal-server-error response.
+
+## Configuration storage
+
+The configuration file contains connection settings and automation definitions. It is written atomically and, where supported by the filesystem, uses mode `0600`.
+
+Corrupt or incompatible configurations are backed up and recovered. Valid automations are salvaged individually when possible.
 
 ## Development
 
+Install dependencies and run tests:
+
 ```bash
 python -m pip install -r requirements.txt
-make test
+python -m unittest discover -s tests -v
 ```
 
-Build external Python distributions:
+Validate the frontend:
 
 ```bash
-python -m pip install build
-python -m build
+node --check src/uc_advanced_automations/static/app.js
 ```
 
-## Target-specific artifacts
+Build the external wheel:
 
-- Upload `uc-intg-advanced-automations-vX.Y.Z-aarch64.tar.gz` to Remote Two/3. It contains an ARM64 self-contained executable and the required custom-integration archive layout.
-- Use the wheel, source distribution, Docker image or systemd deployment only for external installations.
-- GitHub Actions builds both targets independently, validates the UC Remote archive architecture, and publishes SHA-256 checksums.
+```bash
+python -m pip wheel . --no-deps --no-build-isolation -w dist
+```
 
 ## License
 
-MIT
+Released under the [MIT License](LICENSE).

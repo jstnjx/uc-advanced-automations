@@ -8,7 +8,7 @@ import logging
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, time
-from typing import Any
+from typing import Any, Awaitable, Callable
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -48,6 +48,13 @@ class AutomationEngine:
         self._logs: deque[LogEntry] = deque(maxlen=1000)
         self._log_sequence = 0
         self._http_session: aiohttp.ClientSession | None = None
+        self._start_listeners: list[Callable[[Automation, str, str], Any | Awaitable[Any]]] = []
+
+    def add_start_listener(
+        self, callback: Callable[[Automation, str, str], Any | Awaitable[Any]]
+    ) -> None:
+        """Register a callback invoked whenever a run is accepted."""
+        self._start_listeners.append(callback)
 
     def running_count(self) -> int:
         return sum(len(tasks) for tasks in self._running.values())
@@ -70,10 +77,20 @@ class AutomationEngine:
             self._write_log("info", "-", automation.id, "Replacing active run")
 
         run_id = str(uuid4())
+        self._notify_started(automation, run_id, source)
         task = asyncio.create_task(self._run(automation, run_id, source), name=f"automation-{automation.id}")
         active.add(task)
         task.add_done_callback(lambda completed: self._remove_task(automation.id, completed))
         return RunResult(True, run_id)
+
+    def _notify_started(self, automation: Automation, run_id: str, source: str) -> None:
+        for callback in tuple(self._start_listeners):
+            try:
+                result = callback(automation, run_id, source)
+                if asyncio.iscoroutine(result):
+                    asyncio.create_task(result)
+            except Exception:  # pragma: no cover - listeners must not block execution
+                _LOG.exception("Automation start listener failed")
 
     async def close(self) -> None:
         tasks = [task for group in self._running.values() for task in group]

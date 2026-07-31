@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from uc_advanced_automations.models import Automation
 from uc_advanced_automations.web import (
     AutomationValidationError,
+    _validate_automation_rules,
     _validate_command_targets,
     error_middleware,
 )
@@ -32,6 +33,13 @@ class ValidationResponseTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(payload["details"])
         json.dumps(payload)
         self.assertIn("cmd_id", payload["details"][0]["msg"])
+
+    async def test_empty_sequence_is_rejected_with_structured_details(self):
+        automation = Automation(name="Empty", command="EMPTY_FLOW", steps=[])
+        with self.assertRaises(AutomationValidationError) as context:
+            _validate_automation_rules(automation)
+        self.assertEqual(context.exception.details[0]["field"], "steps")
+        self.assertEqual(context.exception.details[0]["type"], "sequence_required")
 
     async def test_sensor_command_target_is_rejected_with_structured_details(self):
         class Core:

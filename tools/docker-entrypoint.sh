@@ -8,7 +8,7 @@ export UC_INTEGRATION_INTERFACE="${UC_INTEGRATION_INTERFACE:-0.0.0.0}"
 export UC_INTEGRATION_HTTP_PORT="${UC_INTEGRATION_HTTP_PORT:-9090}"
 export UC_AUTOMATIONS_WEB_HOST="${UC_AUTOMATIONS_WEB_HOST:-0.0.0.0}"
 
-# The UC External Integration Installer mounts persistent configuration at
+# The external integration installer mounts persistent configuration at
 # /config and supplies UC_CONFIG_HOME=/config. Standalone Docker deployments
 # keep using /data unless an explicit data directory was provided.
 if [ -z "${UC_AUTOMATIONS_DATA_DIR:-}" ]; then
@@ -37,7 +37,7 @@ fi
 
 printf '%s\n' "$UC_AUTOMATIONS_WEB_PORT" > /tmp/uc-advanced-automations-web-port
 
-echo "Starting UC Advanced Automations: runtime=$UC_RUNTIME_MODE data=$UC_AUTOMATIONS_DATA_DIR web=$UC_AUTOMATIONS_WEB_HOST:$UC_AUTOMATIONS_WEB_PORT integration=$UC_INTEGRATION_INTERFACE:$UC_INTEGRATION_HTTP_PORT mdns_disabled=$UC_DISABLE_MDNS_PUBLISH" >&2
+echo "Starting Advanced Automations: runtime=$UC_RUNTIME_MODE data=$UC_AUTOMATIONS_DATA_DIR web=$UC_AUTOMATIONS_WEB_HOST:$UC_AUTOMATIONS_WEB_PORT integration=$UC_INTEGRATION_INTERFACE:$UC_INTEGRATION_HTTP_PORT mdns_disabled=$UC_DISABLE_MDNS_PUBLISH" >&2
 
 # Preserve the standard Docker command contract so installers may override CMD
 # without replacing this environment and data-directory initialization.

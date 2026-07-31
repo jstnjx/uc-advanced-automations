@@ -1,4 +1,4 @@
-"""Authenticated client for the UC Core WebSocket API."""
+"""Authenticated client for the Remote WebSocket API."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 
 
 class CoreApiError(RuntimeError):
-    """UC Core API request failed."""
+    """Remote API request failed."""
 
     def __init__(self, message: str, code: int = 500) -> None:
         super().__init__(message)
@@ -67,7 +67,7 @@ class CoreClient:
 
             settings = self._settings_provider()
             if not settings.api_key:
-                raise CoreApiError("UC Core API key is not configured", 401)
+                raise CoreApiError("Remote API key is not configured", 401)
 
             try:
                 self._ws = await websockets.connect(
@@ -83,12 +83,12 @@ class CoreClient:
                 self._last_error = None
                 self._receiver = asyncio.create_task(self._receive_loop(), name="uc-core-receiver")
                 newly_connected = True
-                _LOG.info("Connected to UC Core API at %s", settings.core_url)
+                _LOG.info("Connected to Remote API at %s", settings.core_url)
             except Exception as err:
                 self._last_error = str(err)
                 self._connected.clear()
                 self._ws = None
-                raise CoreApiError(f"Unable to connect to UC Core API: {err}", 503) from err
+                raise CoreApiError(f"Unable to connect to Remote API: {err}", 503) from err
 
         if newly_connected:
             try:

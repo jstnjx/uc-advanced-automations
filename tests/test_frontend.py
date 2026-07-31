@@ -12,7 +12,7 @@ class FrontendCompatibilityTests(unittest.TestCase):
     def test_uuid_helper_replaces_direct_random_uuid_calls(self) -> None:
         source = APP_JS.read_text(encoding="utf-8")
         self.assertIn("function createId()", source)
-        self.assertEqual(source.count("id: createId(),"), 2)
+        self.assertGreaterEqual(source.count("createId()"), 4)
         self.assertNotIn("id: crypto.randomUUID(),", source)
         self.assertIn("cryptoApi.getRandomValues(bytes)", source)
         self.assertIn("Math.floor(Math.random() * 256)", source)
@@ -31,6 +31,19 @@ class FrontendCompatibilityTests(unittest.TestCase):
         self.assertIn("Sensors are read-only", source)
         self.assertNotIn("Running on:", source)
         self.assertNotIn("UNFOLDED CIRCLE", html)
+        self.assertNotRegex(html, r"\bUC\b")
+        self.assertNotRegex(source, r"\bUC\b")
+        for step in range(4):
+            self.assertIn(f'data-flow-step="{step}"', html)
+            self.assertIn(f'data-flow-panel="{step}"', html)
+        self.assertIn('id="rawEditorDialog"', html)
+        self.assertIn('id="blueprintDialog"', html)
+        self.assertIn('id="savingOverlay"', html)
+        self.assertIn("buildBlueprint", source)
+        self.assertIn("createFromBlueprint", source)
+        self.assertIn("setSaving(true)", source)
+        self.assertIn("Require every condition to match", source)
+        self.assertNotIn("AND — all conditions", source)
 
     def test_diamond_assets_are_used_for_icon_and_favicon(self) -> None:
         html = Path("src/uc_advanced_automations/static/index.html").read_text(encoding="utf-8")

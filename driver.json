@@ -1,13 +1,13 @@
 {
   "driver_id": "advanced_automations",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "min_core_api": "0.35.0",
   "name": {
-    "en": "UC Advanced Automations"
+    "en": "Advanced Automations"
   },
   "icon": "custom:advanced-automations.png",
   "description": {
-    "en": "Create advanced automations with UC commands, AND/OR entity-state triggers, attribute selection, metadata-driven commands, drag-and-drop sequences, nested branches, waits, delays, HTTP requests, and automatic UC entity refresh."
+    "en": "Create advanced automations with entity triggers, attribute conditions, metadata-driven commands, visual sequences, nested branches, waits, delays, HTTP requests, reusable blueprints and raw JSON editing."
   },
   "port": 9090,
   "developer": {
@@ -28,7 +28,7 @@
         "field": {
           "label": {
             "value": {
-              "en": "Run UC Advanced Automations directly on this UC Remote or as an external integration. The automation editor uses port 9201 by default and scans upward if that port is occupied, keeping it outside the UC-reserved 8000-9200 range. During setup, enter the UC Remote address and Web Configurator PIN. The integration authenticates as web-configurator, creates a persistent admin API key through the official Unfolded Circle Core REST API, stores only that key, and discards the PIN. Generated UC commands and touchscreen pages refresh automatically after changes."
+              "en": "Run Advanced Automations directly on a Remote or as an external integration. The automation editor starts at port 9201 and scans upward if that port is occupied. During setup, enter the Remote address and Web Configurator PIN. The integration authenticates as web-configurator, creates a persistent admin API key through the official Unfolded Circle Core REST API, stores only that key, and discards the PIN."
             }
           }
         }

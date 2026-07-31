@@ -9,6 +9,9 @@ const state = {
   commandDefinitions: new Map(),
   drag: null,
   stepTarget: null,
+  flowStep: 0,
+  blueprint: null,
+  entitySearch: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -167,12 +170,23 @@ function isSensor(entityOrId) {
   return String(entity?.entity_type || "").toLowerCase() === "sensor";
 }
 
+function selectedEntityIds() {
+  const automation = selectedAutomation();
+  return Array.isArray(automation?.entity_ids) ? automation.entity_ids : [];
+}
+
+function scopedEntities({ commandable = false } = {}) {
+  const selected = new Set(selectedEntityIds());
+  const source = selected.size ? state.entities.filter((entity) => selected.has(entity.entity_id)) : [];
+  return commandable ? source.filter((entity) => !isSensor(entity)) : source;
+}
+
 function commandableEntities() {
-  return state.entities.filter((entity) => !isSensor(entity));
+  return scopedEntities({ commandable: true });
 }
 
 function firstEntityId({ commandable = false } = {}) {
-  const entities = commandable ? commandableEntities() : state.entities;
+  const entities = scopedEntities({ commandable });
   return entities[0]?.entity_id || "";
 }
 
@@ -186,6 +200,7 @@ function newAutomation() {
     enabled: true,
     command_enabled: true,
     mode: "single",
+    entity_ids: [],
     trigger_mode: "any",
     triggers: [],
     steps: [],
@@ -212,6 +227,7 @@ async function addAutomation() {
   state.automations.push(automation);
   state.selectedId = automation.id;
   state.dirty = true;
+  state.flowStep = 0;
   renderAll();
   $("automationName").focus();
 }
@@ -222,6 +238,7 @@ async function selectAutomation(id) {
   if (state.dirty) await loadAutomations();
   state.selectedId = id;
   state.dirty = false;
+  state.flowStep = 0;
   renderAll();
 }
 
@@ -255,12 +272,201 @@ function renderAutomationList() {
     const summary = document.createElement("small");
     const triggerCount = (automation.triggers || []).filter((item) => item.enabled !== false).length;
     const commandText = automation.command_enabled !== false ? automation.command : "Background only";
-    const logic = triggerCount > 1 ? ` · ${automation.trigger_mode === "all" ? "AND" : "OR"}` : "";
+    const logic = triggerCount > 1 ? ` · ${automation.trigger_mode === "all" ? "all states" : "any trigger"}` : "";
     summary.textContent = triggerCount ? `${commandText} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}${logic}` : commandText;
     button.append(top, summary);
     button.addEventListener("click", () => selectAutomation(automation.id));
     list.append(button);
   }
+}
+
+
+function collectReferencedEntityIds(automation) {
+  const result = [];
+  const seen = new Set();
+  const add = (value) => {
+    if (typeof value === "string" && value && !seen.has(value)) {
+      seen.add(value);
+      result.push(value);
+    }
+  };
+  (automation?.triggers || []).forEach((trigger) => add(trigger.entity_id));
+  const walk = (steps) => {
+    (steps || []).forEach((step) => {
+      if (step.type === "command") add(step.entity_id);
+      if (step.type === "condition" || step.type === "wait") {
+        (step.conditions || []).forEach((condition) => {
+          if ((condition.kind || "entity") === "entity") add(condition.entity_id);
+        });
+      }
+      if (step.type === "condition") {
+        walk(step.then || []);
+        walk(step.else || []);
+      }
+    });
+  };
+  walk(automation?.steps || []);
+  return result;
+}
+
+function renderFlowState() {
+  const step = Math.max(0, Math.min(3, state.flowStep));
+  state.flowStep = step;
+  document.querySelectorAll("[data-flow-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", Number(panel.dataset.flowPanel) !== step);
+  });
+  document.querySelectorAll("[data-flow-step]").forEach((button) => {
+    const buttonStep = Number(button.dataset.flowStep);
+    button.classList.toggle("active", buttonStep === step);
+    button.classList.toggle("complete", buttonStep < step);
+    button.setAttribute("aria-current", buttonStep === step ? "step" : "false");
+  });
+  $("flowBack").disabled = step === 0;
+  $("flowNext").textContent = step === 3 ? "Review and save" : "Continue";
+}
+
+function setFlowStep(step) {
+  state.flowStep = Math.max(0, Math.min(3, Number(step)));
+  renderEditor();
+  $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function validateFlowStep(step) {
+  const automation = selectedAutomation();
+  if (!automation) return [];
+  const errors = [];
+  if (step === 0) {
+    if (!automation.name?.trim()) errors.push({ field: "name", msg: "Name is required" });
+    if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command || "")) {
+      errors.push({ field: "command", msg: "Remote command must use A–Z, numbers and underscores" });
+    }
+  }
+  if (step === 1) {
+    const selected = new Set(automation.entity_ids || []);
+    collectReferencedEntityIds(automation).forEach((entityId) => {
+      if (!selected.has(entityId)) errors.push({ field: "entities", msg: `Select the referenced entity ${entityId}` });
+    });
+  }
+  if (step === 2) {
+    (automation.triggers || []).forEach((trigger, index) => {
+      if (!trigger.entity_id) errors.push({ field: `triggers.${index}.entity_id`, msg: "Select an entity" });
+      if (!trigger.attribute) errors.push({ field: `triggers.${index}.attribute`, msg: "Select an attribute" });
+    });
+  }
+  if (step === 3) validateStepsDraft(automation.steps || [], "steps", errors);
+  return errors;
+}
+
+async function continueFlow() {
+  const errors = validateFlowStep(state.flowStep);
+  if (errors.length) {
+    await openMessageDialog({
+      title: "This step needs attention",
+      message: "Correct the highlighted configuration before continuing.",
+      details: errors,
+      confirmLabel: "Review step",
+    });
+    return;
+  }
+  if (state.flowStep < 3) setFlowStep(state.flowStep + 1);
+  else await saveCurrent();
+}
+
+function entityUsage(automation) {
+  return new Set(collectReferencedEntityIds(automation));
+}
+
+function renderEntitySelection() {
+  const automation = selectedAutomation();
+  if (!automation) return;
+  const container = $("automationEntities");
+  container.replaceChildren();
+  const selected = new Set(automation.entity_ids || []);
+  const used = entityUsage(automation);
+  const query = String(state.entitySearch || "").trim().toLowerCase();
+  const entities = state.entities.filter((entity) => {
+    const haystack = `${displayName(entity)} ${entity.entity_type || ""} ${entity.entity_id || ""}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+  $("selectedEntityCount").textContent = `${selected.size} selected`;
+
+  if (!state.entities.length) {
+    const empty = document.createElement("div");
+    empty.className = "steps-empty wide-empty";
+    empty.textContent = "Connect to the Remote to load entities.";
+    container.append(empty);
+    return;
+  }
+  if (!entities.length) {
+    const empty = document.createElement("div");
+    empty.className = "steps-empty wide-empty";
+    empty.textContent = "No entities match this search.";
+    container.append(empty);
+    return;
+  }
+
+  entities.forEach((entity) => {
+    const label = document.createElement("label");
+    label.className = `entity-selection-card${selected.has(entity.entity_id) ? " selected" : ""}`;
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selected.has(entity.entity_id);
+    const inUse = used.has(entity.entity_id);
+    input.addEventListener("change", async () => {
+      if (!input.checked && inUse) {
+        input.checked = true;
+        await openMessageDialog({
+          title: "Entity is still in use",
+          message: "Remove this entity from its triggers, conditions and sequence steps before deselecting it.",
+          confirmLabel: "Close",
+        });
+        return;
+      }
+      const next = new Set(automation.entity_ids || []);
+      if (input.checked) next.add(entity.entity_id);
+      else next.delete(entity.entity_id);
+      automation.entity_ids = [...next];
+      markDirty();
+      renderEditor();
+    });
+    const content = document.createElement("span");
+    content.className = "entity-selection-content";
+    const top = document.createElement("span");
+    top.className = "entity-selection-name";
+    const name = document.createElement("strong");
+    name.textContent = displayName(entity);
+    const badges = document.createElement("span");
+    badges.className = "entity-badges";
+    const type = document.createElement("span");
+    type.textContent = entity.entity_type || "entity";
+    badges.append(type);
+    if (isSensor(entity)) {
+      const readOnly = document.createElement("span");
+      readOnly.className = "read-only-badge";
+      readOnly.textContent = "Read-only";
+      badges.append(readOnly);
+    }
+    if (inUse) {
+      const usage = document.createElement("span");
+      usage.className = "in-use-badge";
+      usage.textContent = "In use";
+      badges.append(usage);
+    }
+    top.append(name, badges);
+    const id = document.createElement("small");
+    id.textContent = entity.entity_id;
+    content.append(top, id);
+    label.append(input, content);
+    container.append(label);
+  });
+}
+
+function renderTriggerModeHelp() {
+  const automation = selectedAutomation();
+  if (!automation) return;
+  $("triggerModeHelp").textContent = automation.trigger_mode === "all"
+    ? "A changed trigger must match, and the target value of every other enabled trigger must also be true at that moment."
+    : "The automation starts as soon as any enabled trigger matches.";
 }
 
 function renderEditor() {
@@ -269,6 +475,7 @@ function renderEditor() {
   $("editor").classList.toggle("hidden", !automation);
   if (!automation) return;
 
+  if (!Array.isArray(automation.entity_ids)) automation.entity_ids = collectReferencedEntityIds(automation);
   automation.triggers ||= [];
   automation.steps ||= [];
   automation.trigger_mode ||= "any";
@@ -282,6 +489,9 @@ function renderEditor() {
   $("automationCommandEnabled").checked = automation.command_enabled !== false;
   $("automationCommand").disabled = automation.command_enabled === false;
   $("saveAutomation").textContent = automation._new ? "Create automation" : state.dirty ? "Save changes" : "Save";
+  renderFlowState();
+  renderEntitySelection();
+  renderTriggerModeHelp();
   renderTriggers(automation);
   renderSteps($("steps"), automation.steps, "root");
 }
@@ -314,6 +524,7 @@ function bindEditorFields() {
     if (!automation) return;
     automation.trigger_mode = event.target.value;
     renderAutomationList();
+    renderTriggerModeHelp();
     markDirty();
   });
   $("automationDescription").addEventListener("input", (event) => {
@@ -360,7 +571,7 @@ function renderTriggers(automation) {
   if (!triggers.length) {
     const empty = document.createElement("div");
     empty.className = "steps-empty";
-    empty.textContent = "No background triggers. Use the UC command or add a trigger.";
+    empty.textContent = "No background triggers. Use the Remote command or add a trigger.";
     container.append(empty);
     return;
   }
@@ -390,7 +601,7 @@ function renderTrigger(trigger, index, triggers) {
   const grid = document.createElement("div");
   grid.className = "trigger-grid";
   grid.append(
-    entityField("UC entity", trigger.entity_id || "", (value) => {
+    entityField("entity", trigger.entity_id || "", (value) => {
       trigger.entity_id = value;
       trigger.attribute = defaultAttribute(value);
       renderEditor();
@@ -524,7 +735,7 @@ function attachSortable(handle, card, siblings, index, kind) {
 
 function stepLabel(type) {
   return {
-    command: "UC command",
+    command: "Entity",
     delay: "Delay",
     condition: "If / else condition",
     wait: "Wait until",
@@ -603,7 +814,7 @@ function renderCommandStep(step) {
   wrapper.className = "wide command-editor";
   const grid = document.createElement("div");
   grid.className = "step-grid";
-  grid.append(entityField("Command-capable UC entity", step.entity_id || "", (value) => {
+  grid.append(entityField("Command-capable entity", step.entity_id || "", (value) => {
     step.entity_id = value;
     step.cmd_id = "";
     step.params = {};
@@ -613,7 +824,7 @@ function renderCommandStep(step) {
   if (step.entity_id && isSensor(step.entity_id)) {
     const note = document.createElement("div");
     note.className = "read-only-note wide";
-    note.textContent = "Sensors are read-only UC entities. Select a command-capable entity for this step.";
+    note.textContent = "Sensors are read-only entities. Select a command-capable entity for this step.";
     grid.append(note);
     wrapper.append(grid);
     return wrapper;
@@ -624,7 +835,7 @@ function renderCommandStep(step) {
     const loading = fieldWrap("Command");
     const input = document.createElement("input");
     input.disabled = true;
-    input.placeholder = "Loading UC command metadata…";
+    input.placeholder = "Loading Remote command metadata…";
     loading.append(input);
     grid.append(loading);
     loadCommandDefinitions(step.entity_id).then(() => { if (selectedAutomation()) renderEditor(); });
@@ -656,8 +867,8 @@ function renderCommandStep(step) {
     const note = document.createElement("div");
     note.className = "read-only-note wide";
     note.textContent = definitions?.error
-      ? `UC command metadata could not be loaded: ${definitions.error}`
-      : "This UC entity does not advertise any commands and cannot be used as a command step.";
+      ? `Remote command metadata could not be loaded: ${definitions.error}`
+      : "This entity does not advertise any commands and cannot be used as a command step.";
     grid.append(note);
   }
   wrapper.append(grid);
@@ -772,9 +983,9 @@ function conditionGroup(group) {
   wrapper.className = "condition-list";
   const toolbar = document.createElement("div");
   toolbar.className = "condition-toolbar";
-  toolbar.append(selectField("Condition logic", group.mode || "all", [
-    { value: "all", label: "AND — all conditions must match" },
-    { value: "any", label: "OR — any condition may match" },
+  toolbar.append(selectField("Evaluate conditions as", group.mode || "all", [
+    { value: "all", label: "Require every condition to match" },
+    { value: "any", label: "Continue when any condition matches" },
   ], (value) => { group.mode = value; }));
   const addEntity = document.createElement("button");
   addEntity.type = "button"; addEntity.className = "button ghost small"; addEntity.textContent = "+ Entity condition";
@@ -792,7 +1003,7 @@ function conditionRow(condition, index, conditions) {
   const row = document.createElement("div");
   row.className = `condition-row ${(condition.kind || "entity") === "time" ? "time" : ""}`;
   row.append(selectField("Source", condition.kind || "entity", [
-    { value: "entity", label: "UC entity attribute" },
+    { value: "entity", label: "entity attribute" },
     { value: "time", label: "Time window" },
   ], (value) => { conditions[index] = makeCondition(value); markDirty(); renderEditor(); }));
 
@@ -804,7 +1015,7 @@ function conditionRow(condition, index, conditions) {
     );
   } else {
     row.append(
-      entityField("UC entity", condition.entity_id || "", (value) => {
+      entityField("entity", condition.entity_id || "", (value) => {
         condition.entity_id = value;
         condition.attribute = defaultAttribute(value);
         renderEditor();
@@ -936,9 +1147,9 @@ function selectField(labelText, value, options, onChange) {
 function entityField(labelText, value, onChange, { commandable = false } = {}) {
   const label = fieldWrap(labelText);
   const select = document.createElement("select");
-  const candidates = commandable ? commandableEntities() : state.entities;
+  const candidates = scopedEntities({ commandable });
   if (!candidates.length) {
-    const text = commandable ? "No command-capable UC entities found" : "Connect to UC Core to load entities";
+    const text = commandable ? "No selected command-capable entities" : "Choose entities in step 2";
     select.append(new Option(value || text, value || ""));
     select.disabled = true;
   } else {
@@ -1062,12 +1273,17 @@ function validateAutomationDraft(automation) {
   const add = (field, msg) => errors.push({ field, msg });
   if (!automation.name?.trim()) add("name", "Name is required");
   if (automation.command_enabled !== false && !/^[A-Z][A-Z0-9_]{1,63}$/.test(automation.command || "")) {
-    add("command", "UC command must use A–Z, numbers and underscores");
+    add("command", "Remote command must use A–Z, numbers and underscores");
   }
+  const selected = new Set(automation.entity_ids || []);
+  collectReferencedEntityIds(automation).forEach((entityId) => {
+    if (!selected.has(entityId)) add("entities", `Select the referenced entity ${entityId}`);
+  });
   (automation.triggers || []).forEach((trigger, index) => {
-    if (!trigger.entity_id) add(`triggers.${index}.entity_id`, "Select a UC entity");
+    if (!trigger.entity_id) add(`triggers.${index}.entity_id`, "Select an entity");
     if (!trigger.attribute) add(`triggers.${index}.attribute`, "Select an attribute");
   });
+  if (!(automation.steps || []).length) add("steps", "Add at least one sequence step");
   validateStepsDraft(automation.steps || [], "steps", errors);
   if (document.querySelector('textarea[data-invalid="true"]')) add("sequence", "Fix invalid JSON fields before saving");
   return errors;
@@ -1077,14 +1293,14 @@ function validateStepsDraft(steps, prefix, errors) {
   steps.forEach((step, index) => {
     const path = `${prefix}.${index}`;
     if (step.type === "command") {
-      if (!step.entity_id) errors.push({ field: `${path}.entity_id`, msg: "Select a command-capable UC entity" });
+      if (!step.entity_id) errors.push({ field: `${path}.entity_id`, msg: "Select a command-capable entity" });
       else if (isSensor(step.entity_id)) errors.push({ field: `${path}.entity_id`, msg: "Sensors are read-only and cannot receive commands" });
       if (!step.cmd_id) errors.push({ field: `${path}.cmd_id`, msg: "Select a command" });
     } else if (step.type === "condition" || step.type === "wait") {
       if (!Array.isArray(step.conditions) || !step.conditions.length) errors.push({ field: `${path}.conditions`, msg: "Add at least one condition" });
       (step.conditions || []).forEach((condition, conditionIndex) => {
         if (condition.kind === "entity") {
-          if (!condition.entity_id) errors.push({ field: `${path}.conditions.${conditionIndex}.entity_id`, msg: "Select a UC entity" });
+          if (!condition.entity_id) errors.push({ field: `${path}.conditions.${conditionIndex}.entity_id`, msg: "Select an entity" });
           if (!condition.attribute) errors.push({ field: `${path}.conditions.${conditionIndex}.attribute`, msg: "Select an attribute" });
         }
       });
@@ -1101,35 +1317,40 @@ function validateStepsDraft(steps, prefix, errors) {
 }
 
 function refreshMessage(response, prefix) {
-  const status = response.headers.get("X-UC-Entity-Refresh") || "unknown";
-  const detail = response.headers.get("X-UC-Entity-Refresh-Message");
+  const status = response.headers.get("X-Entity-Refresh") || "unknown";
+  const detail = response.headers.get("X-Entity-Refresh-Message");
   const labels = {
-    refreshed: "UC commands and pages refreshed automatically.",
-    reloaded: "The integration reloaded and the UC entity was refreshed.",
-    current: "The UC entity is already current.",
-    unchanged: "The UC entity definition was unchanged.",
-    "not-configured": "Add the UC Advanced Automations entity to the UC Remote to expose its commands.",
-    "api-key-required": "Run integration setup to create the UC Core API key.",
-    "refresh-pending": "The integration reload was requested; UC Core is still applying the entity definition.",
-    failed: detail || "Automatic UC entity refresh failed.",
+    refreshed: "Remote commands and pages refreshed automatically.",
+    reloaded: "The integration reloaded and the entity was refreshed.",
+    current: "The entity is already current.",
+    unchanged: "The entity definition was unchanged.",
+    "not-configured": "Add the Advanced Automations entity to the Remote to expose its commands.",
+    "api-key-required": "Run integration setup to create the Remote API key.",
+    "refresh-pending": "The integration reload was requested; Remote is still applying the entity definition.",
+    failed: detail || "Automatic entity refresh failed.",
   };
   return `${prefix} ${labels[status] || detail || ""}`.trim();
 }
 
-async function refreshUcEntity() {
+async function refreshEntities() {
   try {
     const result = await api("/api/integration/refresh", { method: "POST", body: "{}" });
     const message = result.message || ({
-      refreshed: "UC commands and touchscreen pages refreshed.",
-      reloaded: "Integration connection reloaded and UC entity refreshed.",
-      current: "The UC entity is already current.",
-      "not-configured": "Add the UC Advanced Automations entity to the UC Remote first.",
+      refreshed: "Remote commands and touchscreen pages refreshed.",
+      reloaded: "Integration connection reloaded and entity refreshed.",
+      current: "The entity is already current.",
+      "not-configured": "Add the Advanced Automations entity to the Remote first.",
     }[result.status] || `Refresh status: ${result.status}`);
-    if (result.status === "failed") await showError(new ApiError(message), "UC entity refresh failed");
+    if (result.status === "failed") await showError(new ApiError(message), "entity refresh failed");
     else showNotice(message, "success", 7000);
   } catch (error) {
-    await showError(error, "UC entity refresh failed");
+    await showError(error, "entity refresh failed");
   }
+}
+
+function setSaving(active) {
+  $("savingOverlay").classList.toggle("hidden", !active);
+  document.body.classList.toggle("saving", active);
 }
 
 async function saveCurrent() {
@@ -1137,6 +1358,14 @@ async function saveCurrent() {
   if (!automation) return;
   const errors = validateAutomationDraft(automation);
   if (errors.length) {
+    const firstStepError = errors.find((item) => String(item.field).startsWith("steps"));
+    const firstTriggerError = errors.find((item) => String(item.field).startsWith("triggers"));
+    const entityError = errors.find((item) => item.field === "entities");
+    if (firstStepError) state.flowStep = 3;
+    else if (firstTriggerError) state.flowStep = 2;
+    else if (entityError) state.flowStep = 1;
+    else state.flowStep = 0;
+    renderEditor();
     await openMessageDialog({
       title: "Automation needs attention",
       message: "Correct the following fields before saving.",
@@ -1145,6 +1374,7 @@ async function saveCurrent() {
     });
     return;
   }
+  setSaving(true);
   try {
     const wasNew = automation._new;
     const payload = cleanAutomation(automation);
@@ -1160,6 +1390,8 @@ async function saveCurrent() {
     showNotice(refreshMessage(result.response, "Automation saved."));
   } catch (error) {
     await showError(error, error.status === 400 ? "Automation needs attention" : "Automation could not be saved");
+  } finally {
+    setSaving(false);
   }
 }
 
@@ -1229,7 +1461,7 @@ async function pollStatus() {
     const status = await api("/api/status");
     const badge = $("connectionBadge");
     badge.className = `status-badge ${status.core_connected ? "connected" : status.core_error ? "error" : ""}`;
-    badge.innerHTML = `<span></span>${status.core_connected ? `UC connected · ${status.running} running` : status.api_key_configured ? "UC not connected" : "Setup required"}`;
+    badge.innerHTML = `<span></span>${status.core_connected ? `Remote connected · ${status.running} running` : status.api_key_configured ? "Remote not connected" : "Setup required"}`;
   } catch (_) {}
 }
 
@@ -1277,8 +1509,8 @@ async function openSettings() {
     $("coreUrl").value = state.settings.core_url;
     $("apiKey").value = "";
     $("apiKeyHint").textContent = state.settings.api_key_configured
-      ? "Created during UC integration setup. Leave blank to keep it."
-      : "Run UC integration setup to create a persistent key, or paste one manually.";
+      ? "Created during integration setup. Leave blank to keep it."
+      : "Run integration setup to create a persistent key, or paste one manually.";
     $("timezone").value = state.settings.timezone;
     $("requestTimeout").value = state.settings.request_timeout_seconds;
     $("webHost").value = state.settings.web_host;
@@ -1308,6 +1540,7 @@ function settingsResult(message, type) {
 }
 
 async function saveSettings() {
+  setSaving(true);
   try {
     const result = await api("/api/settings", { method: "PUT", body: JSON.stringify(settingsPayload()) });
     settingsResult(result.restart_required ? "Saved. Restart the service to apply the web host or port change." : "Settings saved.", "success");
@@ -1316,6 +1549,8 @@ async function saveSettings() {
   } catch (error) {
     await showError(error, "Settings could not be saved");
     return false;
+  } finally {
+    setSaving(false);
   }
 }
 
@@ -1323,11 +1558,11 @@ async function testConnection() {
   if (!(await saveSettings())) return;
   try {
     const result = await api("/api/settings/test", { method: "POST", body: "{}" });
-    settingsResult(`Connected. ${result.entity_count} configured UC entities found.`, "success");
+    settingsResult(`Connected. ${result.entity_count} configured entities found.`, "success");
     await loadEntities();
     await pollStatus();
   } catch (error) {
-    await showError(error, "UC connection test failed");
+    await showError(error, "Remote connection test failed");
   }
 }
 
@@ -1341,6 +1576,265 @@ function closeStepPicker() {
   $("stepDialog").close();
 }
 
+
+function openRawEditor() {
+  const automation = selectedAutomation();
+  if (!automation) return;
+  $("rawAutomationJson").value = JSON.stringify(cleanAutomation(automation), null, 2);
+  $("rawEditorResult").className = "inline-result hidden";
+  $("rawEditorDialog").showModal();
+}
+
+function formatRawEditor() {
+  const result = $("rawEditorResult");
+  try {
+    const value = JSON.parse($("rawAutomationJson").value);
+    $("rawAutomationJson").value = JSON.stringify(value, null, 2);
+    result.textContent = "JSON is valid.";
+    result.className = "inline-result success";
+  } catch (error) {
+    result.textContent = `Invalid JSON: ${error.message}`;
+    result.className = "inline-result error";
+  }
+}
+
+async function applyRawEditor() {
+  const current = selectedAutomation();
+  if (!current) return;
+  const result = $("rawEditorResult");
+  try {
+    const parsed = JSON.parse($("rawAutomationJson").value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Automation JSON must be an object");
+    parsed.id = current.id;
+    parsed._new = current._new;
+    parsed.entity_ids = Array.isArray(parsed.entity_ids) ? parsed.entity_ids : collectReferencedEntityIds(parsed);
+    parsed.triggers = Array.isArray(parsed.triggers) ? parsed.triggers : [];
+    parsed.steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+    const index = state.automations.findIndex((item) => item.id === current.id);
+    state.automations[index] = parsed;
+    state.selectedId = parsed.id;
+    markDirty();
+    $("rawEditorDialog").close();
+    renderAll();
+    showNotice("Raw JSON changes applied. Save the automation to persist them.");
+  } catch (error) {
+    result.textContent = `Unable to apply JSON: ${error.message}`;
+    result.className = "inline-result error";
+  }
+}
+
+function commandEntityReferences(automation) {
+  const result = new Set();
+  const walk = (steps) => {
+    (steps || []).forEach((step) => {
+      if (step.type === "command" && step.entity_id) result.add(step.entity_id);
+      if (step.type === "condition") {
+        walk(step.then || []);
+        walk(step.else || []);
+      }
+    });
+  };
+  walk(automation?.steps || []);
+  return result;
+}
+
+function replaceExactStrings(value, replacements) {
+  if (typeof value === "string") return replacements.has(value) ? replacements.get(value) : value;
+  if (Array.isArray(value)) return value.map((item) => replaceExactStrings(item, replacements));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceExactStrings(item, replacements)]));
+  }
+  return value;
+}
+
+function buildBlueprint(automation) {
+  const clean = cleanAutomation(automation);
+  delete clean.id;
+  const commandEntities = commandEntityReferences(automation);
+  const entityIds = [...new Set([...(automation.entity_ids || []), ...collectReferencedEntityIds(automation)])];
+  const replacements = new Map();
+  const entities = entityIds.map((entityId, index) => {
+    const slot = `entity_${index + 1}`;
+    replacements.set(entityId, `$entity:${slot}`);
+    const entity = findEntity(entityId);
+    return {
+      slot,
+      source_id: entityId,
+      name: displayName(entity || { entity_id: entityId }),
+      entity_type: entity?.entity_type || "entity",
+      commandable: commandEntities.has(entityId),
+    };
+  });
+  const template = replaceExactStrings(clean, replacements);
+  template.entity_ids = entities.map((entity) => `$entity:${entity.slot}`);
+  (template.triggers || []).forEach((trigger) => { delete trigger.id; });
+  return {
+    format: "advanced-automations-blueprint",
+    version: 1,
+    metadata: {
+      name: automation.name || "Automation blueprint",
+      description: automation.description || "",
+      exported_at: new Date().toISOString(),
+    },
+    entities,
+    automation: template,
+  };
+}
+
+function showBlueprintTab(tab) {
+  const exporting = tab === "export";
+  $("blueprintExportTab").classList.toggle("active", exporting);
+  $("blueprintImportTab").classList.toggle("active", !exporting);
+  $("blueprintExportPanel").classList.toggle("hidden", !exporting);
+  $("blueprintImportPanel").classList.toggle("hidden", exporting);
+}
+
+function openBlueprintDialog(tab = "export") {
+  const automation = selectedAutomation();
+  const canExport = Boolean(automation);
+  $("blueprintExportTab").disabled = !canExport;
+  if (canExport) $("blueprintExportJson").value = JSON.stringify(buildBlueprint(automation), null, 2);
+  state.blueprint = null;
+  $("blueprintEntityMappings").replaceChildren();
+  $("blueprintEntityMappings").classList.add("hidden");
+  $("createFromBlueprint").classList.add("hidden");
+  $("blueprintImportResult").className = "inline-result hidden";
+  showBlueprintTab(canExport ? tab : "import");
+  $("blueprintDialog").showModal();
+}
+
+async function copyText(textarea) {
+  textarea.focus();
+  textarea.select();
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(textarea.value);
+    else document.execCommand("copy");
+    showNotice("Blueprint copied to the clipboard.");
+  } catch (error) {
+    await showError(error, "Blueprint could not be copied");
+  }
+}
+
+function safeFileName(value) {
+  return String(value || "automation-blueprint")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "automation-blueprint";
+}
+
+function downloadBlueprint() {
+  const blueprint = JSON.parse($("blueprintExportJson").value);
+  const blob = new Blob([JSON.stringify(blueprint, null, 2) + "\n"], { type: "application/json" });
+  const link = document.createElement("a");
+  const objectUrl = URL.createObjectURL(blob);
+  link.href = objectUrl;
+  link.download = `${safeFileName(blueprint.metadata?.name)}.blueprint.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+function blueprintResult(message, type = "success") {
+  const result = $("blueprintImportResult");
+  result.textContent = message;
+  result.className = `inline-result ${type}`;
+}
+
+function parseBlueprint() {
+  try {
+    const blueprint = JSON.parse($("blueprintImportJson").value);
+    if (blueprint?.format !== "advanced-automations-blueprint") throw new Error("This is not an Advanced Automations blueprint");
+    if (blueprint.version !== 1) throw new Error(`Unsupported blueprint version: ${blueprint.version}`);
+    if (!blueprint.automation || typeof blueprint.automation !== "object") throw new Error("Blueprint automation is missing");
+    if (!Array.isArray(blueprint.entities)) throw new Error("Blueprint entity mappings are missing");
+    state.blueprint = blueprint;
+    renderBlueprintMappings();
+    blueprintResult(`Blueprint ready: ${blueprint.metadata?.name || blueprint.automation.name || "Untitled"}`);
+  } catch (error) {
+    state.blueprint = null;
+    $("blueprintEntityMappings").classList.add("hidden");
+    $("createFromBlueprint").classList.add("hidden");
+    blueprintResult(error.message, "error");
+  }
+}
+
+function renderBlueprintMappings() {
+  const container = $("blueprintEntityMappings");
+  container.replaceChildren();
+  const blueprint = state.blueprint;
+  if (!blueprint) return;
+  const heading = document.createElement("div");
+  heading.className = "mapping-heading";
+  heading.innerHTML = "<strong>Map blueprint entities</strong><span>Choose the corresponding entity on this Remote.</span>";
+  container.append(heading);
+  (blueprint.entities || []).forEach((source) => {
+    const row = document.createElement("label");
+    row.className = "blueprint-mapping-row";
+    const details = document.createElement("span");
+    details.className = "mapping-source";
+    const title = document.createElement("strong");
+    title.textContent = source.name || source.source_id || source.slot;
+    const subtitle = document.createElement("small");
+    subtitle.textContent = `${source.entity_type || "entity"}${source.commandable ? " · command target" : ""}`;
+    details.append(title, subtitle);
+    const select = document.createElement("select");
+    select.dataset.blueprintSlot = source.slot;
+    select.append(new Option("Select entity…", ""));
+    const candidates = source.commandable ? state.entities.filter((entity) => !isSensor(entity)) : state.entities;
+    candidates.forEach((entity) => select.append(new Option(`${displayName(entity)} · ${entity.entity_type || "entity"}`, entity.entity_id)));
+    const direct = candidates.find((entity) => entity.entity_id === source.source_id);
+    if (direct) select.value = direct.entity_id;
+    row.append(details, select);
+    container.append(row);
+  });
+  container.classList.remove("hidden");
+  $("createFromBlueprint").classList.remove("hidden");
+}
+
+function uniqueCommand(base) {
+  let command = String(base || "IMPORTED_AUTOMATION").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  if (!/^[A-Z]/.test(command)) command = `AUTOMATION_${command}`;
+  command = command.slice(0, 64);
+  const existing = new Set(state.automations.map((item) => item.command));
+  if (!existing.has(command)) return command;
+  let number = 2;
+  while (existing.has(`${command.slice(0, 60)}_${number}`)) number += 1;
+  return `${command.slice(0, 60)}_${number}`;
+}
+
+async function createFromBlueprint() {
+  const blueprint = state.blueprint;
+  if (!blueprint) return;
+  const mapping = new Map();
+  const missing = [];
+  document.querySelectorAll("[data-blueprint-slot]").forEach((select) => {
+    if (!select.value) missing.push(select.dataset.blueprintSlot);
+    else mapping.set(`$entity:${select.dataset.blueprintSlot}`, select.value);
+  });
+  if (missing.length) {
+    blueprintResult("Map every blueprint entity before creating the automation.", "error");
+    return;
+  }
+  if (!(await allowDiscardChanges())) return;
+  if (state.dirty) await loadAutomations();
+  const imported = replaceExactStrings(blueprint.automation, mapping);
+  imported.id = createId();
+  imported._new = true;
+  imported.name = imported.name || blueprint.metadata?.name || "Imported automation";
+  imported.command = uniqueCommand(imported.command || imported.name);
+  imported.entity_ids = [...new Set((imported.entity_ids || []).filter(Boolean))];
+  imported.triggers = (imported.triggers || []).map((trigger) => ({ ...trigger, id: createId() }));
+  imported.steps = Array.isArray(imported.steps) ? imported.steps : [];
+  state.automations.push(imported);
+  state.selectedId = imported.id;
+  state.dirty = true;
+  state.flowStep = 0;
+  $("blueprintDialog").close();
+  renderAll();
+  showNotice("Blueprint imported. Review the four setup steps, then save the automation.");
+}
+
 function setupEvents() {
   $("addAutomation").addEventListener("click", addAutomation);
   $("emptyAdd").addEventListener("click", addAutomation);
@@ -1351,7 +1845,7 @@ function setupEvents() {
   $("saveSettings").addEventListener("click", saveSettings);
   $("testConnection").addEventListener("click", testConnection);
   $("clearLogView").addEventListener("click", () => { state.visibleLogs = []; renderLogs(); });
-  $("refreshEntity").addEventListener("click", refreshUcEntity);
+  $("refreshEntity").addEventListener("click", refreshEntities);
   $("addTrigger").addEventListener("click", () => {
     const automation = selectedAutomation();
     if (!automation) return;
@@ -1372,6 +1866,55 @@ function setupEvents() {
     closeStepPicker();
     renderEditor();
   });
+  $("flowStepper").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-flow-step]");
+    if (button) setFlowStep(button.dataset.flowStep);
+  });
+  $("flowBack").addEventListener("click", () => setFlowStep(state.flowStep - 1));
+  $("flowNext").addEventListener("click", continueFlow);
+  $("entitySearch").addEventListener("input", (event) => {
+    state.entitySearch = event.target.value;
+    renderEntitySelection();
+  });
+  $("selectAllEntities").addEventListener("click", () => {
+    const automation = selectedAutomation();
+    if (!automation) return;
+    automation.entity_ids = state.entities.map((entity) => entity.entity_id);
+    markDirty();
+    renderEditor();
+  });
+  $("clearEntitySelection").addEventListener("click", () => {
+    const automation = selectedAutomation();
+    if (!automation) return;
+    const used = entityUsage(automation);
+    automation.entity_ids = (automation.entity_ids || []).filter((entityId) => used.has(entityId));
+    markDirty();
+    renderEditor();
+  });
+  $("rawEditorButton").addEventListener("click", openRawEditor);
+  $("closeRawEditor").addEventListener("click", () => $("rawEditorDialog").close());
+  $("cancelRawEditor").addEventListener("click", () => $("rawEditorDialog").close());
+  $("formatRawJson").addEventListener("click", formatRawEditor);
+  $("applyRawEditor").addEventListener("click", applyRawEditor);
+  $("blueprintButton").addEventListener("click", () => openBlueprintDialog("export"));
+  $("emptyBlueprint").addEventListener("click", () => openBlueprintDialog("import"));
+  $("closeBlueprintDialog").addEventListener("click", () => $("blueprintDialog").close());
+  $("blueprintExportTab").addEventListener("click", () => showBlueprintTab("export"));
+  $("blueprintImportTab").addEventListener("click", () => showBlueprintTab("import"));
+  $("copyBlueprint").addEventListener("click", () => copyText($("blueprintExportJson")));
+  $("downloadBlueprint").addEventListener("click", downloadBlueprint);
+  $("readBlueprint").addEventListener("click", parseBlueprint);
+  $("createFromBlueprint").addEventListener("click", createFromBlueprint);
+  $("blueprintFile").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      $("blueprintImportJson").value = await file.text();
+      parseBlueprint();
+    } catch (error) {
+      blueprintResult(`Unable to read blueprint: ${error.message}`, "error");
+    }
+  });
   bindEditorFields();
 }
 
@@ -1381,7 +1924,7 @@ async function init() {
     await loadAutomations();
     await Promise.allSettled([loadEntities(), pollStatus(), pollLogs()]);
   } catch (error) {
-    await showError(error, "UC Advanced Automations could not be loaded");
+    await showError(error, "Advanced Automations could not be loaded");
   }
   setInterval(pollStatus, 5000);
   setInterval(pollLogs, 2000);
