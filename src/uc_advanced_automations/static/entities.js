@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.10 */
+/* Advanced Automations v1.0.11 */
 
 function displayName(entity) {
   if (typeof entity?.name === "string") return entity.name;

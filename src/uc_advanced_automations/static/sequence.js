@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.10 */
+/* Advanced Automations v1.0.11 */
 
 function withExecutionPolicy(step) {
   return {
@@ -496,7 +496,10 @@ function conditionRow(condition, index, conditions) {
   if ((condition.kind || "entity") === "time") {
     row.append(
       timeField("Start", condition.start || "18:00", (value) => { condition.start = value; }),
-      selectField("Operator", condition.operator || "between", ["between", "outside"], (value) => { condition.operator = value; }),
+      selectField("Operator", condition.operator || "between", [
+        { value: "between", label: "Between" },
+        { value: "outside", label: "Outside" },
+      ], (value) => { condition.operator = value; }),
       timeField("End", condition.end || "23:59", (value) => { condition.end = value; }),
     );
   } else {
@@ -508,7 +511,20 @@ function conditionRow(condition, index, conditions) {
       }),
       attributeField("Attribute", condition.entity_id, condition.attribute || "state", (value) => { condition.attribute = value; }),
       selectField("Operator", condition.operator || "eq", [
-        "eq", "ne", "gt", "gte", "lt", "lte", "contains", "not_contains", "in", "not_in", "exists", "not_exists", "truthy", "falsy",
+        { value: "eq", label: "Equals" },
+        { value: "ne", label: "Does not equal" },
+        { value: "gt", label: "Greater than" },
+        { value: "gte", label: "Greater than or equal to" },
+        { value: "lt", label: "Less than" },
+        { value: "lte", label: "Less than or equal to" },
+        { value: "contains", label: "Contains" },
+        { value: "not_contains", label: "Does not contain" },
+        { value: "in", label: "Is in" },
+        { value: "not_in", label: "Is not in" },
+        { value: "exists", label: "Exists" },
+        { value: "not_exists", label: "Does not exist" },
+        { value: "truthy", label: "Is truthy" },
+        { value: "falsy", label: "Is falsy" },
       ], (value) => { condition.operator = value; renderEditor(); }),
       conditionValueField(condition),
     );

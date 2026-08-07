@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.10 */
+/* Advanced Automations v1.0.11 */
 
 async function pollStatus() {
   try {

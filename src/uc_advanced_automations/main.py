@@ -75,7 +75,7 @@ async def run() -> None:
 
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
     _LOG.info(
-        "Starting Advanced Automations v1.0.10 bootstrap: runtime=%s integration=%s:%s",
+        "Starting Advanced Automations v1.0.11 bootstrap: runtime=%s integration=%s:%s",
         runtime.mode,
         os.environ.get("UC_INTEGRATION_INTERFACE", "0.0.0.0"),
         os.environ.get("UC_INTEGRATION_HTTP_PORT", "9090"),
