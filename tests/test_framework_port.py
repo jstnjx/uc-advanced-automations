@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from unittest.mock import patch
 
+import ucapi
 from ucapi_framework import BaseIntegrationDriver, RemoteEntity, SensorEntity
 
 from uc_advanced_automations.core_client import rest_url_from_core_url
@@ -21,6 +23,16 @@ class FrameworkPortTests(unittest.TestCase):
     def test_framework_entity_classes_are_available(self) -> None:
         self.assertTrue(issubclass(RemoteEntity, object))
         self.assertTrue(issubclass(SensorEntity, object))
+
+    def test_framework_driver_can_adopt_bootstrap_api(self) -> None:
+        loop = asyncio.new_event_loop()
+        try:
+            api = ucapi.IntegrationAPI(loop)
+            driver = AdvancedAutomationsDriver(loop=loop, api=api)
+            self.assertIs(driver.api, api)
+            self.assertEqual(driver.driver_id, "advanced_automations")
+        finally:
+            loop.close()
 
     def test_core_url_conversion_accepts_persisted_websocket_url(self) -> None:
         self.assertEqual(
