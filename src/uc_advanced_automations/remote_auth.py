@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
+from unfurled.api import CoreAPI
 from unfurled.helpers.exceptions import AuthenticationError, HTTPError, UnfurledError
 from unfurled.remote import Remote
 
@@ -120,18 +121,17 @@ async def create_persistent_api_key(
     timeout_seconds: float = 10,
     key_name: str = API_KEY_NAME,
 ) -> tuple[RemoteEndpoints, str]:
-    """Create a persistent admin key through the PIN-safe Unfurled path.
+    """Create and verify a persistent admin key using the PIN-safe flow.
 
-    Web Configurator PIN authentication is intentionally kept to the same
-    one-request flow used by the working Custom Select integration: create a new
-    admin key directly and never attempt to enumerate or delete existing keys
-    while authenticated with the PIN. ``Authentication.generate_key`` performs a
-    GET/DELETE/POST rotation sequence, which is unnecessary during initial setup
-    and can fail before the key has been created.
+    This intentionally mirrors the working Custom Select integration. Web
+    Configurator PIN authentication is used only for the direct key-creation
+    request. ``Authentication.generate_key`` isn't used because it first lists
+    and deletes existing keys before POSTing a replacement.
 
-    A short random suffix avoids Core's duplicate-name 422 response without
-    requiring any preflight key-list request. Only the returned API-key secret is
-    persisted by Advanced Automations; the PIN and generated key name are not.
+    A short random suffix avoids duplicate-name HTTP 422 responses without any
+    preflight key-list request. The returned secret is then verified in a fresh
+    bearer-authenticated CoreAPI session before setup is allowed to complete.
+    Only the API-key secret is persisted; the PIN and generated key name are not.
     """
 
     endpoints = normalize_remote_address(remote_address)
@@ -142,8 +142,9 @@ async def create_persistent_api_key(
             RemoteAuthErrorCode.AUTHORIZATION,
         )
 
+    rest_url = f"{endpoints.rest_base_url}/api/"
     remote = Remote(
-        f"{endpoints.rest_base_url}/api/",
+        rest_url,
         pin=pin,
         wake_if_asleep=False,
     )
@@ -151,12 +152,25 @@ async def create_persistent_api_key(
     try:
         async with asyncio.timeout(max(1.0, float(timeout_seconds))):
             api_key = await remote.auth.create_key(generated_name)
-        if not isinstance(api_key, str) or not api_key.strip():
-            raise RemoteAuthError(
-                "The Remote did not return an API key",
-                RemoteAuthErrorCode.INVALID_RESPONSE,
-            )
-        return endpoints, api_key.strip()
+            if not isinstance(api_key, str) or not api_key.strip():
+                raise RemoteAuthError(
+                    "The Remote did not return an API key",
+                    RemoteAuthErrorCode.INVALID_RESPONSE,
+                )
+            api_key = api_key.strip()
+
+            # Do not verify through ``remote.api``: that CoreAPI session was
+            # created with Basic PIN auth. Open a fresh session so this request
+            # proves the returned bearer key itself is valid, exactly like
+            # Custom Select does before accepting its configuration.
+            async with CoreAPI(
+                rest_url,
+                api_key=api_key,
+                timeout=max(1.0, float(timeout_seconds)),
+            ) as verification_api:
+                await verification_api.get_system_info()
+
+        return endpoints, api_key
     except RemoteAuthError:
         raise
     except TimeoutError as err:
@@ -166,7 +180,7 @@ async def create_persistent_api_key(
         ) from err
     except AuthenticationError as err:
         raise RemoteAuthError(
-            "The Web Configurator PIN was rejected",
+            "The Web Configurator PIN or newly created API key was rejected",
             RemoteAuthErrorCode.AUTHORIZATION,
             status=401,
         ) from err
@@ -174,10 +188,12 @@ async def create_persistent_api_key(
         code = (
             RemoteAuthErrorCode.NOT_FOUND
             if err.status_code == 404
+            else RemoteAuthErrorCode.AUTHORIZATION
+            if err.status_code in {401, 403}
             else RemoteAuthErrorCode.INVALID_RESPONSE
         )
         raise RemoteAuthError(
-            f"Remote API-key creation failed with HTTP {err.status_code}: {err.message}",
+            f"Remote API-key setup failed with HTTP {err.status_code}: {err.message}",
             code,
             status=err.status_code,
         ) from err
