@@ -1,0 +1,88 @@
+name: Prepare v2.0.0 headers
+
+on:
+  push:
+    branches:
+      - release/v2.0.0-prep
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.event.head_commit.message == 'Add one-shot v2.0.0 header preparation'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release/v2.0.0-prep
+          fetch-depth: 0
+      - name: Add version headers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          VERSION = "v2.0.0"
+          LABEL = f"Advanced Automations {VERSION}"
+          ROOT = Path('.')
+          WORKFLOW = Path('.github/workflows/prepare-v2-version-headers.yml')
+
+          skip_names = {
+              'LICENSE',
+              'THIRD_PARTY_NOTICES.md',
+              'config.example.json',
+              'driver.json',
+          }
+          skip_suffixes = {
+              '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.zip', '.gz', '.tar', '.svg', '.json'
+          }
+
+          hash_suffixes = {'.py', '.sh', '.yml', '.yaml', '.toml', '.txt', '.service'}
+          slash_suffixes = {'.js'}
+          html_suffixes = {'.html', '.md'}
+
+          changed = []
+          for path in sorted(ROOT.rglob('*')):
+              if not path.is_file() or '.git' in path.parts or path == WORKFLOW:
+                  continue
+              if path.name in skip_names or path.suffix.lower() in skip_suffixes:
+                  continue
+
+              suffix = path.suffix.lower()
+              if path.name in {'.gitignore', 'Dockerfile', 'Makefile'}:
+                  header = f"# {LABEL}"
+              elif suffix in hash_suffixes:
+                  header = f"# {LABEL}"
+              elif suffix in slash_suffixes:
+                  header = f"// {LABEL}"
+              elif suffix == '.css':
+                  header = f"/* {LABEL} */"
+              elif suffix in html_suffixes:
+                  header = f"<!-- {LABEL} -->"
+              else:
+                  continue
+
+              text = path.read_text(encoding='utf-8')
+              if LABEL in '\n'.join(text.splitlines()[:8]):
+                  continue
+
+              lines = text.splitlines(keepends=True)
+              if suffix in {'.py', '.sh'} and lines and lines[0].startswith('#!'):
+                  new_text = lines[0] + header + '\n' + ''.join(lines[1:])
+              else:
+                  new_text = header + '\n' + text
+              path.write_text(new_text, encoding='utf-8')
+              changed.append(str(path))
+
+          print(f"Updated {len(changed)} files")
+          for item in changed:
+              print(item)
+          PY
+
+          git rm .github/workflows/prepare-v2-version-headers.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add v2.0.0 file headers"
+          git push origin HEAD:release/v2.0.0-prep
