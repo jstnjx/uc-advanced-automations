@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from dataclasses import dataclass
 from enum import StrEnum
 from urllib.parse import SplitResult, urlsplit, urlunsplit
@@ -119,11 +120,18 @@ async def create_persistent_api_key(
     timeout_seconds: float = 10,
     key_name: str = API_KEY_NAME,
 ) -> tuple[RemoteEndpoints, str]:
-    """Create a persistent admin key through Unfurled's authentication API.
+    """Create a persistent admin key through the PIN-safe Unfurled path.
 
-    ``Authentication.generate_key`` safely replaces an existing same-named key,
-    which makes setup and reconfiguration idempotent and avoids the Remote's 422
-    duplicate-name response.
+    Web Configurator PIN authentication is intentionally kept to the same
+    one-request flow used by the working Custom Select integration: create a new
+    admin key directly and never attempt to enumerate or delete existing keys
+    while authenticated with the PIN. ``Authentication.generate_key`` performs a
+    GET/DELETE/POST rotation sequence, which is unnecessary during initial setup
+    and can fail before the key has been created.
+
+    A short random suffix avoids Core's duplicate-name 422 response without
+    requiring any preflight key-list request. Only the returned API-key secret is
+    persisted by Advanced Automations; the PIN and generated key name are not.
     """
 
     endpoints = normalize_remote_address(remote_address)
@@ -139,9 +147,10 @@ async def create_persistent_api_key(
         pin=pin,
         wake_if_asleep=False,
     )
+    generated_name = f"{key_name} {secrets.token_hex(3)}"
     try:
         async with asyncio.timeout(max(1.0, float(timeout_seconds))):
-            api_key = await remote.auth.generate_key(key_name)
+            api_key = await remote.auth.create_key(generated_name)
         if not isinstance(api_key, str) or not api_key.strip():
             raise RemoteAuthError(
                 "The Remote did not return an API key",
