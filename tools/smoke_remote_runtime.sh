@@ -91,8 +91,9 @@ if grep -q "ucapi-framework lifecycle attached" "$LOG"; then
 fi
 
 # Minimal RFC 6455 client using only Python's stdlib. Complete the WebSocket
-# handshake and send the same Integration-API CONNECT event a configured Remote
-# instance uses. Heavy startup is allowed only after this event has been routed.
+# handshake, require ucapi's initial authentication response, then send the same
+# Integration-API CONNECT event a configured Remote instance uses. This verifies
+# the exact protocol phase that raced Core on the real Remote.
 python3 - "$PORT" <<'PY'
 import base64
 import json
@@ -103,7 +104,7 @@ import sys
 import time
 
 port = int(sys.argv[1])
-sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+sock = socket.create_connection(("127.0.0.1", port), timeout=2)
 key = base64.b64encode(os.urandom(16)).decode("ascii")
 request = (
     f"GET / HTTP/1.1\r\n"
@@ -120,8 +121,42 @@ while b"\r\n\r\n" not in response:
     if not chunk:
         raise SystemExit("WebSocket handshake closed before HTTP 101 response")
     response += chunk
-if b" 101 " not in response.split(b"\r\n", 1)[0]:
-    raise SystemExit(f"Unexpected WebSocket handshake response: {response[:200]!r}")
+headers, buffered = response.split(b"\r\n\r\n", 1)
+if b" 101 " not in headers.split(b"\r\n", 1)[0]:
+    raise SystemExit(f"Unexpected WebSocket handshake response: {headers[:200]!r}")
+
+
+def read_exact(size: int) -> bytes:
+    global buffered
+    while len(buffered) < size:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise SystemExit("WebSocket closed while waiting for authentication frame")
+        buffered += chunk
+    data, buffered = buffered[:size], buffered[size:]
+    return data
+
+
+first = read_exact(2)
+opcode = first[0] & 0x0F
+masked = bool(first[1] & 0x80)
+length = first[1] & 0x7F
+if length == 126:
+    length = struct.unpack("!H", read_exact(2))[0]
+elif length == 127:
+    length = struct.unpack("!Q", read_exact(8))[0]
+if masked:
+    mask_key = read_exact(4)
+else:
+    mask_key = None
+payload = read_exact(length)
+if mask_key is not None:
+    payload = bytes(byte ^ mask_key[index % 4] for index, byte in enumerate(payload))
+if opcode != 0x1:
+    raise SystemExit(f"Expected text authentication frame, got opcode {opcode}")
+auth = json.loads(payload.decode("utf-8"))
+if auth.get("msg") != "authentication" or auth.get("code") != 200:
+    raise SystemExit(f"Unexpected bootstrap authentication response: {auth!r}")
 
 payload = json.dumps({"kind": "event", "msg": "connect", "msg_data": {}}).encode("utf-8")
 mask = os.urandom(4)
@@ -132,8 +167,8 @@ elif length < 65536:
     header = bytes((0x81, 0x80 | 126)) + struct.pack("!H", length)
 else:
     header = bytes((0x81, 0x80 | 127)) + struct.pack("!Q", length)
-masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-sock.sendall(header + mask + masked)
+masked_payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+sock.sendall(header + mask + masked_payload)
 time.sleep(0.5)
 sock.close()
 PY
@@ -153,7 +188,7 @@ for _ in $(seq 1 80); do
 done
 
 if [[ "$framework_ready" != true ]]; then
-  echo "Framework did not attach after a completed Core-style WebSocket handshake and CONNECT event" >&2
+  echo "Framework did not attach after a completed Core-style authentication and CONNECT event" >&2
   cat "$LOG" >&2
   exit 1
 fi
@@ -164,5 +199,5 @@ if ! grep -q "Core activated bootstrap Integration API via connect" "$LOG"; then
   exit 1
 fi
 
-echo "ARM64 driver completed Core-style WebSocket activation before loading ucapi-framework"
+echo "ARM64 driver completed Core-style WebSocket authentication before loading ucapi-framework"
 cat "$LOG"
