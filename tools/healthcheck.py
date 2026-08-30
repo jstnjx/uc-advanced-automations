@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Advanced Automations v2.0.0
 """Container health probe using the runtime-selected web-interface port."""
 
 from __future__ import annotations

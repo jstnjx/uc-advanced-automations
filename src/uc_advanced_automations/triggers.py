@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Entity, schedule, webhook, lifecycle, and automation-outcome triggers."""
 
 from __future__ import annotations

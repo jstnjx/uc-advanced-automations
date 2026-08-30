@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Extended v2 sequence executor.
 
 The existing AutomationEngine remains the compatibility base. This subclass adds

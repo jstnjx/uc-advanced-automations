@@ -1,3 +1,4 @@
+<!-- Advanced Automations v2.0.0 -->
 # Advanced Automations v2 sequence steps
 
 Advanced Automations v2 adds orchestration and run-scoped values without introducing a scripting runtime. New steps use the same timeout, retry, failure-branch and rollback policies as existing sequence steps.

@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Safe automation execution engine with persistent history and execution policies."""
 
 from __future__ import annotations

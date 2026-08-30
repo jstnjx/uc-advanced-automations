@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Advanced Automations v2.0.0
 set -euo pipefail
 
 ARCHIVE="${1:?Usage: smoke_remote_runtime.sh ARCHIVE.tar.gz}"

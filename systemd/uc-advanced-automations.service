@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 [Unit]
 Description=Unfolded Circle Advanced Automations
 After=network-online.target

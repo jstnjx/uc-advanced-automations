@@ -1,3 +1,4 @@
+// Advanced Automations v2.0.0
 /* Advanced Automations v1.0.11 */
 
 function newAutomation() {

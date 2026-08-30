@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """SQLite-backed run history, logs, and automation revisions."""
 
 from __future__ import annotations
