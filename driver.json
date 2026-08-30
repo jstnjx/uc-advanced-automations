@@ -1,6 +1,6 @@
 {
   "driver_id": "advanced_automations",
-  "version": "1.0.11",
+  "version": "2.0.0",
   "min_core_api": "0.35.0",
   "name": {
     "en": "Advanced Automations"
@@ -28,12 +28,12 @@
         "field": {
           "label": {
             "value": {
-              "en": "Run Advanced Automations directly on a Remote or as an external integration. The automation editor starts at port 9201 and scans upward if that port is occupied. During setup, enter the Remote address and Web Configurator PIN. The integration authenticates as web-configurator, creates a persistent admin API key through the official Unfolded Circle Core REST API, stores only that key, and discards the PIN."
+              "en": "Run Advanced Automations directly on a Remote or as an external integration. The automation editor starts at port 9201 and scans upward if that port is occupied. During setup, enter the Remote address and Web Configurator PIN. Authentication and Remote Core communication are handled through Unfurled; the Integration API lifecycle is handled by ucapi-framework. Only the persistent API key is stored and the PIN is discarded."
             }
           }
         }
       }
     ]
   },
-  "release_date": "2026-07-31"
+  "release_date": "2026-08-30"
 }
