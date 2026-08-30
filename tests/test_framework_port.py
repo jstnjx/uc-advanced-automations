@@ -9,6 +9,7 @@ from ucapi_framework import BaseIntegrationDriver, RemoteEntity, SensorEntity
 
 from uc_advanced_automations.core_client import rest_url_from_core_url
 from uc_advanced_automations.framework_driver import AdvancedAutomationsDriver
+from uc_advanced_automations.main import _DeferredSetupHandler, _restore_early_subscriptions
 from uc_advanced_automations.remote_auth import (
     API_KEY_NAME,
     create_persistent_api_key,
@@ -48,6 +49,51 @@ class FrameworkPortTests(unittest.TestCase):
         endpoints = normalize_remote_address("http://192.168.1.50:8080/api")
         self.assertEqual(endpoints.rest_base_url, "http://192.168.1.50:8080")
         self.assertEqual(endpoints.websocket_url, "ws://192.168.1.50:8080/ws")
+
+
+class BootstrapStartupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_setup_request_activates_runtime_before_delegate_is_ready(self) -> None:
+        activated = asyncio.Event()
+        handler = _DeferredSetupHandler(activated.set)
+
+        task = asyncio.create_task(handler(object()))
+        await asyncio.wait_for(activated.wait(), timeout=0.2)
+        self.assertFalse(task.done())
+
+        async def delegate(message: object) -> object:
+            return message
+
+        handler.set_delegate(delegate)
+        result = await asyncio.wait_for(task, timeout=0.2)
+        self.assertIsInstance(result, object)
+
+    def test_early_subscriptions_are_replayed_after_entities_exist(self) -> None:
+        class Collection:
+            def __init__(self, values: dict[str, object] | None = None) -> None:
+                self.values = dict(values or {})
+
+            def contains(self, entity_id: str) -> bool:
+                return entity_id in self.values
+
+            def get(self, entity_id: str) -> object | None:
+                return self.values.get(entity_id)
+
+            def add(self, entity: object) -> None:
+                self.values[getattr(entity, "id")] = entity
+
+        class Entity:
+            def __init__(self, entity_id: str) -> None:
+                self.id = entity_id
+
+        class Api:
+            available_entities = Collection({"advanced_automations": Entity("advanced_automations")})
+            configured_entities = Collection()
+
+        restored = _restore_early_subscriptions(
+            Api(),
+            {"advanced_automations", "not_available_yet"},
+        )
+        self.assertEqual(restored, ["advanced_automations"])
 
 
 class _FakeAuth:
