@@ -1,3 +1,4 @@
+<!-- Advanced Automations v2.0.0 -->
 # Third-Party Notices
 
 ## ucapi-framework
