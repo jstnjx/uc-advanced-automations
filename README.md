@@ -4,6 +4,18 @@ Advanced Automations is a local visual automation engine for **Unfolded Circle R
 
 The integration combines entity triggers, conditions, commands, schedules, waits, HTTP requests, recovery behavior and persistent diagnostics in one workflow editor.
 
+## v2 architecture
+
+Advanced Automations v2 uses **ucapi-framework 1.9.6** for Integration-API lifecycle handling and entity abstractions, and **Unfurled 0.5.0** for authenticated Remote Core REST/WebSocket communication.
+
+- `ucapi-framework` owns the `IntegrationAPI` instance and standard Remote lifecycle/event handling.
+- Generated Remote and Sensor entities use the framework entity base classes.
+- `Unfurled` owns REST authentication, API-key rotation, Remote Core REST operations and the reconnecting WebSocket transport.
+- `CoreClient` remains as a narrow application adapter so the automation engine, trigger manager and web editor are independent from transport-library internals.
+- The automation engine, database, configuration store and editor remain application-owned domain components.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed boundary between the framework, Unfurled and the automation domain layer.
+
 ## Screenshots
 
 ### Automation dashboard
@@ -184,11 +196,12 @@ During integration setup:
 
 1. Enter the Remote address.
 2. Enter the current Web Configurator PIN.
-3. The integration authenticates as `web-configurator` and creates an `admin`-scoped persistent API key through the official Unfolded Circle Core REST API.
-4. The returned one-time API key is stored in the private configuration file.
-5. The submitted PIN is discarded and never persisted.
+3. Unfurled authenticates as `web-configurator` and creates an `admin`-scoped persistent `Advanced Automations` API key.
+4. If a key with that name already exists, Unfurled safely replaces it before issuing the new secret.
+5. The returned one-time API key is stored in the private configuration file.
+6. The submitted PIN is discarded and never persisted.
 
-When reconfiguring the same Remote, an empty PIN retains the existing API key. Entering a PIN creates a replacement key.
+When reconfiguring the same Remote, an empty PIN retains the existing API key. Entering a PIN rotates the persistent key.
 
 ## External service installation
 
@@ -229,13 +242,13 @@ bash ./tools/build_remote.sh aarch64
 The generated archive uses this pattern:
 
 ```text
-uc-intg-advanced-automations-v1.0.11-aarch64.tar.gz
+uc-intg-advanced-automations-v2.0.0-aarch64.tar.gz
 ```
 
 Verify an archive before installation:
 
 ```bash
-bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v1.0.11-aarch64.tar.gz
+bash ./tools/verify_remote_archive.sh ./uc-intg-advanced-automations-v2.0.0-aarch64.tar.gz
 ```
 
 The Python wheel is for external/server deployment and is not a custom-integration archive.
