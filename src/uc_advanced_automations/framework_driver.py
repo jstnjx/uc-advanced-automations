@@ -2,7 +2,7 @@
 
 Advanced Automations does not represent a conventional external AV device: its
 entities are generated from the local automation database, while Unfurled talks
-back to the hosting Remote Core.  The framework driver therefore owns the
+back to the hosting Remote Core. The framework driver therefore owns the
 Integration-API lifecycle and event wiring; domain entities continue to be
 rebuilt by :class:`IntegrationController` when automation definitions change.
 """
@@ -15,12 +15,7 @@ from ucapi_framework import BaseDeviceInterface, BaseIntegrationDriver
 
 
 class IntegrationRuntimeDevice(BaseDeviceInterface):
-    """No-op framework device used as the integration runtime type.
-
-    No instances are registered: the actual Remote Core transport is provided by
-    Unfurled through ``CoreClient``.  A concrete device type is still supplied to
-    ``BaseIntegrationDriver`` so the driver remains fully framework-native.
-    """
+    """No-op framework device used as the integration runtime type."""
 
     @property
     def identifier(self) -> str:
@@ -57,5 +52,5 @@ class AdvancedAutomationsDriver(BaseIntegrationDriver[IntegrationRuntimeDevice, 
             device_class=IntegrationRuntimeDevice,
             entity_classes=[],
             loop=loop,
-            driver_id="advanced-automations",
+            driver_id="advanced_automations",
         )
