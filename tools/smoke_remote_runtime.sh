@@ -49,8 +49,7 @@ UC_AUTOMATIONS_WEB_PORT="$WEB_PORT" \
 PID=$!
 
 # Remote Core aborts setup if a custom integration does not expose its
-# Integration API quickly enough. Keep CI below a 4.5 second cold-start budget
-# so a framework/dependency import regression cannot silently ship again.
+# Integration API quickly enough. Keep CI below a 4.5 second cold-start budget.
 ready=false
 for _ in $(seq 1 18); do
   if ! kill -0 "$PID" 2>/dev/null; then
@@ -79,4 +78,91 @@ if (( ELAPSED_MS > 4500 )); then
 fi
 
 echo "ARM64 driver opened assigned Integration API socket 127.0.0.1:$PORT in ${ELAPSED_MS} ms"
+
+# A listening TCP socket is not sufficient: the real regression occurred because
+# expensive imports began immediately after bind and delayed the first WebSocket
+# protocol exchange until Core had already aborted setup. Before a Core protocol
+# event arrives the framework/application stack must still be deferred.
+sleep 0.2
+if grep -q "ucapi-framework lifecycle attached" "$LOG"; then
+  echo "Framework loaded before Core activated the bootstrap Integration API session" >&2
+  cat "$LOG" >&2
+  exit 1
+fi
+
+# Minimal RFC 6455 client using only Python's stdlib. Complete the WebSocket
+# handshake and send the same Integration-API CONNECT event a configured Remote
+# instance uses. Heavy startup is allowed only after this event has been routed.
+python3 - "$PORT" <<'PY'
+import base64
+import json
+import os
+import socket
+import struct
+import sys
+import time
+
+port = int(sys.argv[1])
+sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+key = base64.b64encode(os.urandom(16)).decode("ascii")
+request = (
+    f"GET / HTTP/1.1\r\n"
+    f"Host: 127.0.0.1:{port}\r\n"
+    "Upgrade: websocket\r\n"
+    "Connection: Upgrade\r\n"
+    f"Sec-WebSocket-Key: {key}\r\n"
+    "Sec-WebSocket-Version: 13\r\n\r\n"
+)
+sock.sendall(request.encode("ascii"))
+response = b""
+while b"\r\n\r\n" not in response:
+    chunk = sock.recv(4096)
+    if not chunk:
+        raise SystemExit("WebSocket handshake closed before HTTP 101 response")
+    response += chunk
+if b" 101 " not in response.split(b"\r\n", 1)[0]:
+    raise SystemExit(f"Unexpected WebSocket handshake response: {response[:200]!r}")
+
+payload = json.dumps({"kind": "event", "msg": "connect", "msg_data": {}}).encode("utf-8")
+mask = os.urandom(4)
+length = len(payload)
+if length < 126:
+    header = bytes((0x81, 0x80 | length))
+elif length < 65536:
+    header = bytes((0x81, 0x80 | 126)) + struct.pack("!H", length)
+else:
+    header = bytes((0x81, 0x80 | 127)) + struct.pack("!Q", length)
+masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+sock.sendall(header + mask + masked)
+time.sleep(0.5)
+sock.close()
+PY
+
+framework_ready=false
+for _ in $(seq 1 80); do
+  if ! kill -0 "$PID" 2>/dev/null; then
+    echo "ARM64 driver exited while loading deferred application stack" >&2
+    cat "$LOG" >&2
+    exit 1
+  fi
+  if grep -q "ucapi-framework lifecycle attached after bootstrap activation (connect)" "$LOG"; then
+    framework_ready=true
+    break
+  fi
+  sleep 0.25
+done
+
+if [[ "$framework_ready" != true ]]; then
+  echo "Framework did not attach after a completed Core-style WebSocket handshake and CONNECT event" >&2
+  cat "$LOG" >&2
+  exit 1
+fi
+
+if ! grep -q "Core activated bootstrap Integration API via connect" "$LOG"; then
+  echo "Bootstrap CONNECT event was not routed" >&2
+  cat "$LOG" >&2
+  exit 1
+fi
+
+echo "ARM64 driver completed Core-style WebSocket activation before loading ucapi-framework"
 cat "$LOG"
