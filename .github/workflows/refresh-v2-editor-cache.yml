@@ -1,0 +1,35 @@
+name: Refresh v2 editor cache token
+
+on:
+  push:
+    branches:
+      - fix/v2-editor-cache
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/v2-editor-cache
+      - name: Refresh static asset cache token
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/uc_advanced_automations/static/index.html')
+          text = path.read_text(encoding='utf-8')
+          old = '?v=1.0.11'
+          new = '?v=2.0.0-sequence-steps'
+          if old not in text:
+              raise SystemExit('Expected v1.0.11 static cache token was not found')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/uc_advanced_automations/static/index.html
+          git commit -m 'Refresh v2 editor static cache token'
+          git push origin HEAD:fix/v2-editor-cache
