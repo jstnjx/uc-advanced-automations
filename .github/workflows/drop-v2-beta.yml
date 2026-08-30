@@ -1,0 +1,18 @@
+name: Drop v2-beta
+
+on:
+  push:
+    branches:
+      - refactor/ucapi-framework-unfurled
+
+permissions:
+  contents: write
+
+jobs:
+  delete-v2-beta:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete obsolete v2-beta branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/v2-beta"
