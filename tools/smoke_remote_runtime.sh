@@ -35,6 +35,7 @@ mkdir -p "$TMP/config"
 PORT="${UC_SMOKE_INTEGRATION_PORT:-19001}"
 WEB_PORT="${UC_SMOKE_WEB_PORT:-19201}"
 LOG="$TMP/driver.log"
+START_NS="$(date +%s%N)"
 
 UC_RUNTIME_MODE=remote \
 UC_CONFIG_HOME="$TMP/config" \
@@ -47,8 +48,11 @@ UC_AUTOMATIONS_WEB_PORT="$WEB_PORT" \
   "$TMP/bin/driver" >"$LOG" 2>&1 &
 PID=$!
 
+# Remote Core aborts setup if a custom integration does not expose its
+# Integration API quickly enough. Keep CI below a 4.5 second cold-start budget
+# so a framework/dependency import regression cannot silently ship again.
 ready=false
-for _ in $(seq 1 40); do
+for _ in $(seq 1 18); do
   if ! kill -0 "$PID" 2>/dev/null; then
     echo "ARM64 driver exited before opening the Integration API socket" >&2
     cat "$LOG" >&2
@@ -61,11 +65,18 @@ for _ in $(seq 1 40); do
   sleep 0.25
 done
 
+ELAPSED_MS="$(( ($(date +%s%N) - START_NS) / 1000000 ))"
 if [[ "$ready" != true ]]; then
-  echo "ARM64 driver did not open 127.0.0.1:$PORT within 10 seconds" >&2
+  echo "ARM64 driver did not open 127.0.0.1:$PORT within the 4.5 second Remote startup budget" >&2
   cat "$LOG" >&2
   exit 1
 fi
 
-echo "ARM64 driver opened assigned Integration API socket 127.0.0.1:$PORT"
+if (( ELAPSED_MS > 4500 )); then
+  echo "ARM64 driver exceeded Remote startup budget: ${ELAPSED_MS} ms" >&2
+  cat "$LOG" >&2
+  exit 1
+fi
+
+echo "ARM64 driver opened assigned Integration API socket 127.0.0.1:$PORT in ${ELAPSED_MS} ms"
 cat "$LOG"
