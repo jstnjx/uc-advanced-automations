@@ -1,22 +1,15 @@
-"""Remote REST API authentication helpers.
-
-The Remote's short-lived web-configurator PIN is used only to create a
-persistent API key. The PIN is never returned by this module and must never be
-stored in application configuration.
-"""
+"""Remote authentication helpers backed by Unfurled."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
-import aiohttp
+from unfurled.helpers.exceptions import AuthenticationError, HTTPError, UnfurledError
+from unfurled.remote import Remote
 
-WEB_CONFIGURATOR_USERNAME = "web-configurator"
 API_KEY_NAME = "Advanced Automations"
 
 
@@ -59,27 +52,16 @@ def _replace_scheme(parts: SplitResult, scheme: str, path: str) -> str:
 
 
 def normalize_remote_address(value: str) -> RemoteEndpoints:
-    """Normalize an IP, hostname, REST URL, or WebSocket URL.
-
-    Examples accepted by the setup flow:
-
-    - ``192.168.1.50``
-    - ``remote.local``
-    - ``http://192.168.1.50``
-    - ``ws://192.168.1.50/ws``
-    - ``https://remote.example``
-    """
+    """Normalize an IP, hostname, REST URL, or WebSocket URL."""
 
     candidate = str(value or "").strip()
     if not candidate:
         raise RemoteAuthError("Remote address is required", RemoteAuthErrorCode.INVALID_INPUT)
-
     if "://" not in candidate:
         candidate = f"http://{candidate}"
 
     try:
         parts = urlsplit(candidate)
-        # Accessing ``port`` validates malformed host:port combinations.
         _ = parts.port
     except ValueError as err:
         raise RemoteAuthError("Remote address is invalid", RemoteAuthErrorCode.INVALID_INPUT) from err
@@ -111,11 +93,9 @@ def normalize_remote_address(value: str) -> RemoteEndpoints:
         )
 
     secure = scheme in {"https", "wss"}
-    rest_scheme = "https" if secure else "http"
-    websocket_scheme = "wss" if secure else "ws"
     return RemoteEndpoints(
-        rest_base_url=_replace_scheme(parts, rest_scheme, ""),
-        websocket_url=_replace_scheme(parts, websocket_scheme, "/ws"),
+        rest_base_url=_replace_scheme(parts, "https" if secure else "http", ""),
+        websocket_url=_replace_scheme(parts, "wss" if secure else "ws", "/ws"),
     )
 
 
@@ -139,12 +119,11 @@ async def create_persistent_api_key(
     timeout_seconds: float = 10,
     key_name: str = API_KEY_NAME,
 ) -> tuple[RemoteEndpoints, str]:
-    """Create and return a persistent Remote API key.
+    """Create a persistent admin key through Unfurled's authentication API.
 
-    The request follows the documented Remote REST API flow:
-    ``POST /api/auth/api_keys`` using Basic Auth with username
-    ``web-configurator`` and the PIN supplied by the user. The returned key is
-    shown by the Remote only once, so callers must persist it immediately.
+    ``Authentication.generate_key`` safely replaces an existing same-named key,
+    which makes setup and reconfiguration idempotent and avoids the Remote's 422
+    duplicate-name response.
     """
 
     endpoints = normalize_remote_address(remote_address)
@@ -155,68 +134,48 @@ async def create_persistent_api_key(
             RemoteAuthErrorCode.AUTHORIZATION,
         )
 
-    url = f"{endpoints.rest_base_url}/api/auth/api_keys"
-    timeout = aiohttp.ClientTimeout(total=max(1.0, float(timeout_seconds)))
-    payload = {"name": key_name, "scopes": ["admin"]}
-
+    remote = Remote(
+        f"{endpoints.rest_base_url}/api/",
+        pin=pin,
+        wake_if_asleep=False,
+    )
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                url,
-                auth=aiohttp.BasicAuth(WEB_CONFIGURATOR_USERNAME, pin),
-                json=payload,
-                headers={"Accept": "application/json"},
-            ) as response:
-                body = await response.text()
-                if response.status in {401, 403}:
-                    raise RemoteAuthError(
-                        "The Web Configurator PIN was rejected",
-                        RemoteAuthErrorCode.AUTHORIZATION,
-                        status=response.status,
-                    )
-                if response.status == 404:
-                    raise RemoteAuthError(
-                        "The Remote does not provide the API-key endpoint",
-                        RemoteAuthErrorCode.NOT_FOUND,
-                        status=response.status,
-                    )
-                if response.status < 200 or response.status >= 300:
-                    raise RemoteAuthError(
-                        f"Remote API-key creation failed with HTTP {response.status}",
-                        RemoteAuthErrorCode.INVALID_RESPONSE,
-                        status=response.status,
-                    )
-
-                try:
-                    data: Any = json.loads(body)
-                except json.JSONDecodeError as err:
-                    raise RemoteAuthError(
-                        "The Remote returned an invalid API-key response",
-                        RemoteAuthErrorCode.INVALID_RESPONSE,
-                        status=response.status,
-                    ) from err
-                api_key = data.get("api_key") if isinstance(data, dict) else None
-                if not isinstance(api_key, str) or not api_key.strip():
-                    raise RemoteAuthError(
-                        "The Remote did not return an API key",
-                        RemoteAuthErrorCode.INVALID_RESPONSE,
-                        status=response.status,
-                    )
-                return endpoints, api_key.strip()
+        async with asyncio.timeout(max(1.0, float(timeout_seconds))):
+            api_key = await remote.auth.generate_key(key_name)
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise RemoteAuthError(
+                "The Remote did not return an API key",
+                RemoteAuthErrorCode.INVALID_RESPONSE,
+            )
+        return endpoints, api_key.strip()
     except RemoteAuthError:
         raise
-    except asyncio.TimeoutError as err:
+    except TimeoutError as err:
         raise RemoteAuthError(
             "The Remote did not respond before the request timed out",
             RemoteAuthErrorCode.TIMEOUT,
         ) from err
-    except aiohttp.ClientConnectorError as err:
+    except AuthenticationError as err:
         raise RemoteAuthError(
-            "Unable to connect to the Remote",
+            "The Web Configurator PIN was rejected",
+            RemoteAuthErrorCode.AUTHORIZATION,
+            status=401,
+        ) from err
+    except HTTPError as err:
+        code = (
+            RemoteAuthErrorCode.NOT_FOUND
+            if err.status_code == 404
+            else RemoteAuthErrorCode.INVALID_RESPONSE
+        )
+        raise RemoteAuthError(
+            f"Remote API-key creation failed with HTTP {err.status_code}: {err.message}",
+            code,
+            status=err.status_code,
+        ) from err
+    except (UnfurledError, OSError) as err:
+        raise RemoteAuthError(
+            f"Unable to communicate with the Remote: {err}",
             RemoteAuthErrorCode.CONNECTION,
         ) from err
-    except aiohttp.ClientError as err:
-        raise RemoteAuthError(
-            "Remote API communication failed",
-            RemoteAuthErrorCode.CONNECTION,
-        ) from err
+    finally:
+        await remote.close()
