@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from collections.abc import Iterator
 from typing import Any
@@ -122,12 +123,18 @@ class RemoteAuthTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_custom_key_name_is_matched_exactly(self) -> None:
+        custom_name = f"{API_KEY_NAME} test"
         session = _FakeSession(
             post=[
                 _FakeResponse(422, "{}"),
                 _FakeResponse(201, '{"api_key":"custom-secret"}'),
             ],
-            get=[_FakeResponse(200, f'[{"{"}key_id":"custom-id","name":"{API_KEY_NAME} test"{"}"}]')],
+            get=[
+                _FakeResponse(
+                    200,
+                    json.dumps([{"key_id": "custom-id", "name": custom_name}]),
+                )
+            ],
             delete=[_FakeResponse(200, "{}")],
         )
 
@@ -138,7 +145,7 @@ class RemoteAuthTests(unittest.IsolatedAsyncioTestCase):
             _, api_key = await create_persistent_api_key(
                 "remote.local",
                 "1234",
-                key_name=f"{API_KEY_NAME} test",
+                key_name=custom_name,
             )
 
         self.assertEqual(api_key, "custom-secret")
