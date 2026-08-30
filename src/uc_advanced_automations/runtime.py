@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Runtime target detection and target-specific defaults."""
 
 from __future__ import annotations

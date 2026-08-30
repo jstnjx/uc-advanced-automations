@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Remote Core API adapter backed by Unfurled.
 
 The application keeps a small compatibility surface for the automation engine and

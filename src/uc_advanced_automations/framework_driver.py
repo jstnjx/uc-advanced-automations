@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """ucapi-framework driver for Advanced Automations.
 
 Advanced Automations does not represent a conventional external AV device: its

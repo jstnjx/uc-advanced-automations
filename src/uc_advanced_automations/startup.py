@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Startup helpers shared by embedded and external runtimes."""
 
 from __future__ import annotations

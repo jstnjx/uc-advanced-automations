@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Advanced Automations v2.0.0
 """Public repository smoke checks that do not depend on the private test suite."""
 
 from __future__ import annotations

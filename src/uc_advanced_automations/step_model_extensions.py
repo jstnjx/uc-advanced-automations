@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """v2 sequence-step model extensions.
 
 This module extends the existing dict-based sequence schema without changing the

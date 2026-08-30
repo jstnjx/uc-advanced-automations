@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Integration API entities exposed to the Remote."""
 
 from __future__ import annotations

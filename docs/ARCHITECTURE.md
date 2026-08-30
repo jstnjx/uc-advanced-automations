@@ -1,3 +1,4 @@
+<!-- Advanced Automations v2.0.0 -->
 # Advanced Automations v2 architecture
 
 Advanced Automations v2 keeps the automation engine independent from the transport/framework layers.

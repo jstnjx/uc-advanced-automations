@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 .PHONY: test test-public test-private build-wheel build-remote verify-remote clean
 
 test: test-public

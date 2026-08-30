@@ -1,4 +1,5 @@
 #!/bin/sh
+# Advanced Automations v2.0.0
 set -eu
 
 export UC_EXTERNAL="${UC_EXTERNAL:-true}"

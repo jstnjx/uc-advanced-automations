@@ -1,3 +1,4 @@
+// Advanced Automations v2.0.0
 /* Advanced Automations v2 sequence extensions */
 
 function installSequenceV2Editor() {

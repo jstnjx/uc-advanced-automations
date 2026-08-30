@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Remote authentication helpers backed by Unfurled."""
 
 from __future__ import annotations
