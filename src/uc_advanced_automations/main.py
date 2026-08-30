@@ -106,13 +106,17 @@ async def run() -> None:
         from .config_store import ConfigStore
         from .core_client import CoreClient
         from .database import AutomationDatabase
-        from .engine import AutomationEngine
+        from .extended_engine import ExtendedAutomationEngine
         from .integration import IntegrationController
         from .setup_flow import RemoteApiSetupFlow
         from .startup import start_web_site
+        from .step_model_extensions import install_model_extensions
         from .triggers import TriggerManager
         from .web import create_app
 
+        # The sequence model is deliberately extended after the fast Core-facing
+        # Integration API bind but before ConfigStore validates persisted data.
+        install_model_extensions()
         store = ConfigStore(runtime=runtime)
         service_status.update(store.recovery_status)
         settings = store.settings()
@@ -125,7 +129,12 @@ async def run() -> None:
 
         database = AutomationDatabase(store.data_dir)
         core = CoreClient(store.settings)
-        engine = AutomationEngine(core, lambda: store.settings().timezone, database)
+        engine = ExtendedAutomationEngine(
+            core,
+            lambda: store.settings().timezone,
+            database,
+            store.get_automation,
+        )
         integration = IntegrationController(api, store, engine, core, database)
         triggers = TriggerManager(core, store, engine)
 
