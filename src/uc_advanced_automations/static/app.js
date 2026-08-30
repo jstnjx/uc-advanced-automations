@@ -1,4 +1,4 @@
-/* Advanced Automations v1.0.11 */
+/* Advanced Automations v2.0.0 */
 
 function setupEvents() {
   $("addAutomation").addEventListener("click", addAutomation);
@@ -133,4 +133,15 @@ async function init() {
   setInterval(pollStatus, 5000);
 }
 
-init();
+async function bootstrap() {
+  await new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "/static/sequence-v2.js?v=2.0.0";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Unable to load v2 sequence editor extensions"));
+    document.head.append(script);
+  });
+  await init();
+}
+
+bootstrap().catch((error) => showError(error, "Advanced Automations could not be loaded"));
