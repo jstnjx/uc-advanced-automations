@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 import signal
@@ -12,7 +13,6 @@ from typing import Any, Awaitable, Callable
 import ucapi
 
 from . import __version__
-from .framework_driver import AdvancedAutomationsDriver
 from .runtime import detect_runtime
 from .startup import initialize_integration_api
 
@@ -47,20 +47,39 @@ class _DeferredSetupHandler:
         return await self._delegate(message)
 
 
+async def _attach_framework_driver(loop: asyncio.AbstractEventLoop, api: ucapi.IntegrationAPI) -> Any:
+    """Load ucapi-framework without blocking the already-listening Integration API.
+
+    Importing ``ucapi_framework`` eagerly imports its setup, discovery, migration,
+    helper and entity modules. That is acceptable after the Core-facing socket is
+    listening, but on Remote hardware it is too expensive for the pre-listen cold
+    start path. Import it in a worker thread, then attach its lifecycle handlers to
+    the bootstrap API on the event-loop thread.
+    """
+
+    module = await asyncio.to_thread(
+        importlib.import_module,
+        "uc_advanced_automations.framework_driver",
+    )
+    return module.AdvancedAutomationsDriver(loop=loop, api=api)
+
+
 async def run() -> None:
     runtime = detect_runtime()
     runtime.apply_process_environment(9090)
 
     loop = asyncio.get_running_loop()
-    # ucapi-framework owns the IntegrationAPI instance and standard Remote
-    # lifecycle/event wiring. Advanced Automations only supplies its domain
-    # setup flow and dynamically generated entities.
-    framework_driver = AdvancedAutomationsDriver(loop=loop)
-    api = framework_driver.api
+    # The Remote Core has a short custom-integration startup deadline. Build the
+    # minimal ucapi listener first; ucapi-framework adopts this same API instance
+    # immediately afterwards, once Core can already establish its session.
+    api = ucapi.IntegrationAPI(loop)
     setup_handler = _DeferredSetupHandler()
+    framework_driver: Any | None = None
     service_status: dict[str, Any] = {
         "integration_api_ready": False,
         "integration_api_error": None,
+        "framework_attached": False,
+        "framework_error": None,
         "application_ready": False,
         "application_error": None,
         "web_ready": False,
@@ -82,9 +101,8 @@ async def run() -> None:
         os.environ.get("UC_INTEGRATION_HTTP_PORT", "9090"),
     )
 
-    # Bind the Core-facing listener before importing the larger editor/database
-    # stack. The framework's IntegrationAPI preserves the fast embedded startup
-    # path required by Remote hardware.
+    # Nothing from ucapi-framework, Unfurled, SQLite, Pydantic or the editor is
+    # imported before this bind. This is the cold-start contract for Remote Two/3.
     integration_ready = await initialize_integration_api(
         api,
         driver_path,
@@ -93,6 +111,19 @@ async def run() -> None:
     )
     if not integration_ready and runtime.runs_on_remote:
         raise RuntimeError(service_status["integration_api_error"] or "Integration API failed")
+
+    try:
+        framework_driver = await _attach_framework_driver(loop, api)
+        service_status["framework_attached"] = True
+        service_status["framework_error"] = None
+        _LOG.info("ucapi-framework lifecycle attached to bootstrap Integration API")
+    except Exception as err:
+        service_status["framework_attached"] = False
+        service_status["framework_error"] = f"{type(err).__name__}: {err}"
+        setup_handler.set_error(err)
+        _LOG.exception("Unable to attach ucapi-framework lifecycle")
+        if runtime.runs_on_remote:
+            raise
 
     runner: Any | None = None
     database: Any | None = None
@@ -213,6 +244,10 @@ async def run() -> None:
             await runner.cleanup()
         if database is not None:
             database.close()
+        # Keep the framework object alive for the entire process lifetime; its
+        # listeners are attached to ``api`` and should not be garbage-collected
+        # while the Integration API is running.
+        framework_driver = None
 
 
 def main() -> None:
