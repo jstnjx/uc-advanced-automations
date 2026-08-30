@@ -98,11 +98,14 @@ class BootstrapStartupTests(unittest.IsolatedAsyncioTestCase):
 
 class _FakeAuth:
     def __init__(self) -> None:
-        self.names: list[str] = []
+        self.created_names: list[str] = []
 
-    async def generate_key(self, name: str) -> str:
-        self.names.append(name)
+    async def create_key(self, name: str) -> str:
+        self.created_names.append(name)
         return "persistent-key"
+
+    async def generate_key(self, _name: str) -> str:
+        raise AssertionError("PIN setup must not enumerate/rotate existing API keys")
 
 
 class _FakeRemote:
@@ -124,8 +127,11 @@ class RemoteAuthenticationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         _FakeRemote.instances.clear()
 
-    async def test_api_key_creation_is_delegated_to_unfurled_rotation(self) -> None:
-        with patch("uc_advanced_automations.remote_auth.Remote", _FakeRemote):
+    async def test_api_key_creation_matches_custom_select_one_shot_pin_flow(self) -> None:
+        with (
+            patch("uc_advanced_automations.remote_auth.Remote", _FakeRemote),
+            patch("uc_advanced_automations.remote_auth.secrets.token_hex", return_value="a1b2c3"),
+        ):
             endpoints, api_key = await create_persistent_api_key(
                 "192.168.1.50",
                 "1234",
@@ -137,7 +143,7 @@ class RemoteAuthenticationTests(unittest.IsolatedAsyncioTestCase):
         remote = _FakeRemote.instances[0]
         self.assertEqual(remote.endpoint, "http://192.168.1.50/api/")
         self.assertEqual(remote.pin, "1234")
-        self.assertEqual(remote.auth.names, [API_KEY_NAME])
+        self.assertEqual(remote.auth.created_names, [f"{API_KEY_NAME} a1b2c3"])
         self.assertTrue(remote.closed)
 
 
