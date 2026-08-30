@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Integration-API setup flow for Remote authentication."""
 
 from __future__ import annotations

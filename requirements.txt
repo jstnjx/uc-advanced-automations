@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 ucapi==0.7.0
 ucapi-framework==1.9.6
 unfurled==0.5.0

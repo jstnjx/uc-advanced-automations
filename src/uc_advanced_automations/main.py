@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Application entry point."""
 
 from __future__ import annotations

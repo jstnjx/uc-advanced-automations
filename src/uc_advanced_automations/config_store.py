@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Atomic JSON configuration persistence with crash-safe recovery."""
 
 from __future__ import annotations

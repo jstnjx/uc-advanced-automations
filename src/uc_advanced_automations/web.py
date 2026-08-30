@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Aiohttp web application and JSON API."""
 
 from __future__ import annotations

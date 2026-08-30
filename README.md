@@ -1,3 +1,4 @@
+<!-- Advanced Automations v2.0.0 -->
 # Advanced Automations
 
 Advanced Automations is a local visual automation engine for **Unfolded Circle Remote Two** and **Remote 3**. It can run directly on a Remote as an ARM64 custom integration or as an external container managed by an external integration installer.

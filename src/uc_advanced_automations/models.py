@@ -1,3 +1,4 @@
+# Advanced Automations v2.0.0
 """Configuration models, trigger schemas, and validation helpers."""
 
 from __future__ import annotations
