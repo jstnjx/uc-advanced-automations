@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   prepare:
-    if: github.event.head_commit.message == 'Add one-shot v2.0.0 header preparation'
+    if: github.event.head_commit.message == 'Fix one-shot v2.0.0 header preparation'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -45,6 +45,8 @@ jobs:
           changed = []
           for path in sorted(ROOT.rglob('*')):
               if not path.is_file() or '.git' in path.parts or path == WORKFLOW:
+                  continue
+              if '.github' in path.parts and 'workflows' in path.parts:
                   continue
               if path.name in skip_names or path.suffix.lower() in skip_suffixes:
                   continue
