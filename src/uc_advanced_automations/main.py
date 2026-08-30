@@ -11,6 +11,8 @@ from typing import Any, Awaitable, Callable
 
 import ucapi
 
+from . import __version__
+from .framework_driver import AdvancedAutomationsDriver
 from .runtime import detect_runtime
 from .startup import initialize_integration_api
 
@@ -50,7 +52,11 @@ async def run() -> None:
     runtime.apply_process_environment(9090)
 
     loop = asyncio.get_running_loop()
-    api = ucapi.IntegrationAPI(loop)
+    # ucapi-framework owns the IntegrationAPI instance and standard Remote
+    # lifecycle/event wiring. Advanced Automations only supplies its domain
+    # setup flow and dynamically generated entities.
+    framework_driver = AdvancedAutomationsDriver(loop=loop)
+    api = framework_driver.api
     setup_handler = _DeferredSetupHandler()
     service_status: dict[str, Any] = {
         "integration_api_ready": False,
@@ -63,26 +69,22 @@ async def run() -> None:
         "entity_definition_error": None,
         "trigger_manager_ready": False,
         "trigger_manager_error": None,
+        "integration_framework": "ucapi-framework",
+        "core_client": "unfurled",
     }
-
-    @api.listens_to(ucapi.Events.CONNECT)
-    async def on_connect() -> None:
-        await api.set_device_state(ucapi.DeviceStates.CONNECTED)
-
-    @api.listens_to(ucapi.Events.DISCONNECT)
-    async def on_disconnect() -> None:
-        _LOG.info("Remote disconnected from integration")
 
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
     _LOG.info(
-        "Starting Advanced Automations v1.0.11 bootstrap: runtime=%s integration=%s:%s",
+        "Starting Advanced Automations v%s: runtime=%s integration=%s:%s framework=ucapi-framework core=unfurled",
+        __version__,
         runtime.mode,
         os.environ.get("UC_INTEGRATION_INTERFACE", "0.0.0.0"),
         os.environ.get("UC_INTEGRATION_HTTP_PORT", "9090"),
     )
 
-    # Bind the socket Core is waiting for before importing/initializing the
-    # database, automation engine, trigger scheduler or browser editor.
+    # Bind the Core-facing listener before importing the larger editor/database
+    # stack. The framework's IntegrationAPI preserves the fast embedded startup
+    # path required by Remote hardware.
     integration_ready = await initialize_integration_api(
         api,
         driver_path,
@@ -99,9 +101,6 @@ async def run() -> None:
     triggers: Any | None = None
 
     try:
-        # Deliberately lazy-import the larger application stack after ucapi has
-        # opened the Core-facing listener. This is material on Remote hardware
-        # and in a cold PyInstaller process.
         from aiohttp import web
 
         from .config_store import ConfigStore
@@ -173,7 +172,7 @@ async def run() -> None:
                 service_status,
             )
             _LOG.info("AUTOMATION EDITOR URL: http://%s:%d/", settings.web_host, actual_web_port)
-        except Exception as err:  # The Integration API must remain usable without the editor.
+        except Exception as err:
             service_status["web_ready"] = False
             service_status["web_error"] = f"{type(err).__name__}: {err}"
             _LOG.exception("Web editor could not be started; Integration API remains available")
@@ -189,7 +188,7 @@ async def run() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, stop_event.set)
-        except NotImplementedError:  # Windows
+        except NotImplementedError:
             pass
 
     try:

@@ -10,11 +10,12 @@ from typing import Any
 import ucapi
 from ucapi import remote, sensor
 from ucapi.ui import Size, UiPage, create_ui_text
+from ucapi_framework import RemoteEntity, SensorEntity
 
 from .config_store import ConfigStore
 from .core_client import CoreApiError, CoreClient
-from .engine import AutomationEngine
 from .database import AutomationDatabase
+from .engine import AutomationEngine
 from .models import Automation
 
 _LOG = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ LAST_TRIGGERED_SENSOR_ID = "last_automation_triggered"
 
 
 class IntegrationController:
-    """Maintain integration entities, dispatch commands, and refresh definitions."""
+    """Maintain framework entities, dispatch commands, and refresh definitions."""
 
     def __init__(
         self,
@@ -117,9 +118,7 @@ class IntegrationController:
                     "status": "reloaded" if updated else "refresh-pending",
                     "refreshed": updated,
                     "reloaded": True,
-                    "message": None
-                    if updated
-                    else "Entities refreshed.",
+                    "message": None if updated else "Entities refreshed.",
                 }
             except CoreApiError as err:
                 _LOG.warning("Automatic entity refresh failed: %s", err)
@@ -167,13 +166,11 @@ class IntegrationController:
             "user_interface"
         ) == desired.get("user_interface")
 
-    def _build_remote_entity(self) -> ucapi.Remote:
-        automations = [
-            item for item in self.store.automations() if item.enabled and item.command_enabled
-        ]
+    def _build_remote_entity(self) -> RemoteEntity:
+        automations = [item for item in self.store.automations() if item.enabled and item.command_enabled]
         commands = [item.command for item in automations]
         pages = self._build_pages(automations)
-        return ucapi.Remote(
+        return RemoteEntity(
             ENTITY_ID,
             {"en": "Advanced Automations", "de": "Erweiterte Automationen"},
             [remote.Features.SEND_CMD],
@@ -187,8 +184,8 @@ class IntegrationController:
             cmd_handler=self.command_handler,
         )
 
-    def _build_last_triggered_sensor(self) -> ucapi.Sensor:
-        return ucapi.Sensor(
+    def _build_last_triggered_sensor(self) -> SensorEntity:
+        return SensorEntity(
             LAST_TRIGGERED_SENSOR_ID,
             {"en": "Last automation triggered", "de": "Zuletzt ausgelöste Automation"},
             [],

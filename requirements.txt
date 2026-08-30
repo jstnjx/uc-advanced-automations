@@ -1,4 +1,5 @@
 ucapi==0.7.0
-aiohttp>=3.10,<4
-websockets>=14,<17
+ucapi-framework==1.9.6
+unfurled==0.5.0
+aiohttp>=3.13.5,<4
 pydantic>=2.10,<3
