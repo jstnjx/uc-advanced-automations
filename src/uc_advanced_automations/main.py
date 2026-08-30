@@ -22,10 +22,11 @@ _LOG = logging.getLogger(__name__)
 class _DeferredSetupHandler:
     """Accept Core setup requests while the full application finishes loading."""
 
-    def __init__(self) -> None:
+    def __init__(self, activate: Callable[[], None] | None = None) -> None:
         self._ready = asyncio.Event()
         self._delegate: Callable[[Any], Awaitable[Any]] | None = None
         self._startup_error: str | None = None
+        self._activate = activate
 
     def set_delegate(self, delegate: Callable[[Any], Awaitable[Any]]) -> None:
         self._delegate = delegate
@@ -36,8 +37,13 @@ class _DeferredSetupHandler:
         self._ready.set()
 
     async def __call__(self, message: Any) -> Any:
+        # ucapi acknowledges setup_driver before invoking this handler. Activating
+        # here means the Core-facing WebSocket handshake and setup request are
+        # already complete before expensive framework/application imports begin.
+        if self._activate is not None:
+            self._activate()
         try:
-            await asyncio.wait_for(self._ready.wait(), timeout=25)
+            await asyncio.wait_for(self._ready.wait(), timeout=45)
         except TimeoutError:
             _LOG.error("Setup requested before application initialization completed")
             return ucapi.SetupError(error_type=ucapi.IntegrationSetupError.OTHER)
@@ -48,14 +54,7 @@ class _DeferredSetupHandler:
 
 
 async def _attach_framework_driver(loop: asyncio.AbstractEventLoop, api: ucapi.IntegrationAPI) -> Any:
-    """Load ucapi-framework without blocking the already-listening Integration API.
-
-    Importing ``ucapi_framework`` eagerly imports its setup, discovery, migration,
-    helper and entity modules. That is acceptable after the Core-facing socket is
-    listening, but on Remote hardware it is too expensive for the pre-listen cold
-    start path. Import it in a worker thread, then attach its lifecycle handlers to
-    the bootstrap API on the event-loop thread.
-    """
+    """Load ucapi-framework after Core has activated the bootstrap API session."""
 
     module = await asyncio.to_thread(
         importlib.import_module,
@@ -64,20 +63,40 @@ async def _attach_framework_driver(loop: asyncio.AbstractEventLoop, api: ucapi.I
     return module.AdvancedAutomationsDriver(loop=loop, api=api)
 
 
+def _restore_early_subscriptions(api: ucapi.IntegrationAPI, entity_ids: set[str]) -> list[str]:
+    """Replay subscriptions received before dynamic entities were registered."""
+
+    restored: list[str] = []
+    for entity_id in sorted(entity_ids):
+        if api.configured_entities.contains(entity_id):
+            continue
+        entity = api.available_entities.get(entity_id)
+        if entity is None:
+            continue
+        api.configured_entities.add(entity)
+        restored.append(entity_id)
+    return restored
+
+
 async def run() -> None:
     runtime = detect_runtime()
     runtime.apply_process_environment(9090)
 
     loop = asyncio.get_running_loop()
-    # The Remote Core has a short custom-integration startup deadline. Build the
-    # minimal ucapi listener first; ucapi-framework adopts this same API instance
-    # immediately afterwards, once Core can already establish its session.
+    # The Remote Core has a short custom-integration startup deadline. Build only
+    # the minimal ucapi listener first. On Remote hardware no expensive framework,
+    # Unfurled, database or editor import may start until Core has successfully
+    # delivered setup_driver or connect over this listener.
     api = ucapi.IntegrationAPI(loop)
-    setup_handler = _DeferredSetupHandler()
-    framework_driver: Any | None = None
+    activation_event = asyncio.Event()
+    activation_reason: str | None = None
+    bootstrap_connect_received = False
+    pending_subscriptions: set[str] = set()
+
     service_status: dict[str, Any] = {
         "integration_api_ready": False,
         "integration_api_error": None,
+        "bootstrap_activation": None,
         "framework_attached": False,
         "framework_error": None,
         "application_ready": False,
@@ -92,6 +111,37 @@ async def run() -> None:
         "core_client": "unfurled",
     }
 
+    def activate(reason: str) -> None:
+        nonlocal activation_reason
+        if activation_event.is_set():
+            return
+        activation_reason = reason
+        service_status["bootstrap_activation"] = reason
+        _LOG.info("Core activated bootstrap Integration API via %s", reason)
+        activation_event.set()
+
+    setup_handler = _DeferredSetupHandler(lambda: activate("setup_driver"))
+
+    @api.listens_to(ucapi.Events.CONNECT)
+    async def _bootstrap_connect() -> None:
+        nonlocal bootstrap_connect_received
+        if service_status["framework_attached"]:
+            return
+        bootstrap_connect_received = True
+        activate("connect")
+        # The framework normally performs this in its CONNECT handler. The first
+        # CONNECT deliberately arrives before the framework is loaded, so preserve
+        # the observable device state here. There are no framework-managed device
+        # instances in Advanced Automations.
+        await api.set_device_state(ucapi.DeviceStates.CONNECTED)
+
+    @api.listens_to(ucapi.Events.SUBSCRIBE_ENTITIES)
+    def _capture_early_subscriptions(entity_ids: list[str]) -> None:
+        if service_status["application_ready"]:
+            return
+        pending_subscriptions.update(str(entity_id) for entity_id in entity_ids)
+
+    framework_driver: Any | None = None
     driver_path = str(files("uc_advanced_automations").joinpath("driver.json"))
     _LOG.info(
         "Starting Advanced Automations v%s: runtime=%s integration=%s:%s framework=ucapi-framework core=unfurled",
@@ -101,8 +151,6 @@ async def run() -> None:
         os.environ.get("UC_INTEGRATION_HTTP_PORT", "9090"),
     )
 
-    # Nothing from ucapi-framework, Unfurled, SQLite, Pydantic or the editor is
-    # imported before this bind. This is the cold-start contract for Remote Two/3.
     integration_ready = await initialize_integration_api(
         api,
         driver_path,
@@ -112,11 +160,25 @@ async def run() -> None:
     if not integration_ready and runtime.runs_on_remote:
         raise RuntimeError(service_status["integration_api_error"] or "Integration API failed")
 
+    if runtime.runs_on_remote:
+        _LOG.info(
+            "Integration API is listening; deferring framework/application startup until Core sends setup_driver or connect"
+        )
+        await activation_event.wait()
+        # Let ucapi finish the protocol callback that triggered activation before
+        # starting imports. In particular, setup_driver has already been ACKed.
+        await asyncio.sleep(0)
+    else:
+        activate("external_runtime")
+
     try:
         framework_driver = await _attach_framework_driver(loop, api)
         service_status["framework_attached"] = True
         service_status["framework_error"] = None
-        _LOG.info("ucapi-framework lifecycle attached to bootstrap Integration API")
+        _LOG.info(
+            "ucapi-framework lifecycle attached after bootstrap activation (%s)",
+            activation_reason,
+        )
     except Exception as err:
         service_status["framework_attached"] = False
         service_status["framework_error"] = f"{type(err).__name__}: {err}"
@@ -145,8 +207,6 @@ async def run() -> None:
         from .triggers import TriggerManager
         from .web import create_app
 
-        # The sequence model is deliberately extended after the fast Core-facing
-        # Integration API bind but before ConfigStore validates persisted data.
         install_model_extensions()
         store = ConfigStore(runtime=runtime)
         service_status.update(store.recovery_status)
@@ -171,6 +231,10 @@ async def run() -> None:
 
         try:
             integration.sync_entity()
+            restored = _restore_early_subscriptions(api, pending_subscriptions)
+            pending_subscriptions.clear()
+            if restored:
+                _LOG.info("Restored early entity subscriptions: %s", ", ".join(restored))
             service_status["entity_definition_ready"] = True
         except Exception as err:  # pragma: no cover - protects startup
             service_status["entity_definition_error"] = f"{type(err).__name__}: {err}"
@@ -186,6 +250,13 @@ async def run() -> None:
         setup_handler.set_delegate(setup_flow.handle)
         service_status["application_ready"] = True
         service_status["application_error"] = None
+
+        # If the bootstrap CONNECT was the activation trigger, framework loading
+        # necessarily happened after that first event. Its no-op runtime device has
+        # already been represented by the CONNECTED state above; subsequent lifecycle
+        # events are handled by ucapi-framework normally.
+        if bootstrap_connect_received:
+            _LOG.info("Bootstrap CONNECT completed before framework attachment")
 
         app = create_app(
             store,
@@ -244,9 +315,6 @@ async def run() -> None:
             await runner.cleanup()
         if database is not None:
             database.close()
-        # Keep the framework object alive for the entire process lifetime; its
-        # listeners are attached to ``api`` and should not be garbage-collected
-        # while the Integration API is running.
         framework_driver = None
 
 
