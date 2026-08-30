@@ -50,6 +50,7 @@ python -m PyInstaller \
   --onedir \
   --name driver \
   --paths src \
+  --hidden-import uc_advanced_automations.framework_driver \
   --add-data "src/uc_advanced_automations/driver.json:uc_advanced_automations" \
   --add-data "src/uc_advanced_automations/advanced-automations.png:uc_advanced_automations" \
   --add-data "src/uc_advanced_automations/THIRD_PARTY_NOTICES.md:uc_advanced_automations" \
