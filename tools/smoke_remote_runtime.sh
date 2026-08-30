@@ -82,7 +82,7 @@ echo "ARM64 driver opened assigned Integration API socket 127.0.0.1:$PORT in ${E
 # A listening TCP socket is not sufficient: the real regression occurred because
 # expensive imports began immediately after bind and delayed the first WebSocket
 # protocol exchange until Core had already aborted setup. Before a Core protocol
-# event arrives the framework/application stack must still be deferred.
+# request arrives the framework/application stack must still be deferred.
 sleep 0.2
 if grep -q "ucapi-framework lifecycle attached" "$LOG"; then
   echo "Framework loaded before Core activated the bootstrap Integration API session" >&2
@@ -90,10 +90,11 @@ if grep -q "ucapi-framework lifecycle attached" "$LOG"; then
   exit 1
 fi
 
-# Minimal RFC 6455 client using only Python's stdlib. Complete the WebSocket
-# handshake, require ucapi's initial authentication response, then send the same
-# Integration-API CONNECT event a configured Remote instance uses. This verifies
-# the exact protocol phase that raced Core on the real Remote.
+# Minimal RFC 6455 client using only Python's stdlib. Reproduce the first-install
+# path: complete the WebSocket upgrade, require ucapi's authentication response,
+# send setup_driver, and require its 200 acknowledgement. ucapi acknowledges
+# setup_driver before invoking our deferred setup handler, so only after that
+# acknowledgement may the expensive framework/application stack begin loading.
 python3 - "$PORT" <<'PY'
 import base64
 import json
@@ -131,45 +132,61 @@ def read_exact(size: int) -> bytes:
     while len(buffered) < size:
         chunk = sock.recv(4096)
         if not chunk:
-            raise SystemExit("WebSocket closed while waiting for authentication frame")
+            raise SystemExit("WebSocket closed while waiting for server frame")
         buffered += chunk
     data, buffered = buffered[:size], buffered[size:]
     return data
 
 
-first = read_exact(2)
-opcode = first[0] & 0x0F
-masked = bool(first[1] & 0x80)
-length = first[1] & 0x7F
-if length == 126:
-    length = struct.unpack("!H", read_exact(2))[0]
-elif length == 127:
-    length = struct.unpack("!Q", read_exact(8))[0]
-if masked:
-    mask_key = read_exact(4)
-else:
-    mask_key = None
-payload = read_exact(length)
-if mask_key is not None:
-    payload = bytes(byte ^ mask_key[index % 4] for index, byte in enumerate(payload))
-if opcode != 0x1:
-    raise SystemExit(f"Expected text authentication frame, got opcode {opcode}")
-auth = json.loads(payload.decode("utf-8"))
+def read_json_frame() -> dict:
+    first = read_exact(2)
+    opcode = first[0] & 0x0F
+    masked = bool(first[1] & 0x80)
+    length = first[1] & 0x7F
+    if length == 126:
+        length = struct.unpack("!H", read_exact(2))[0]
+    elif length == 127:
+        length = struct.unpack("!Q", read_exact(8))[0]
+    mask_key = read_exact(4) if masked else None
+    payload = read_exact(length)
+    if mask_key is not None:
+        payload = bytes(byte ^ mask_key[index % 4] for index, byte in enumerate(payload))
+    if opcode != 0x1:
+        raise SystemExit(f"Expected text frame, got opcode {opcode}")
+    return json.loads(payload.decode("utf-8"))
+
+
+def send_json_frame(message: dict) -> None:
+    payload = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    mask = os.urandom(4)
+    length = len(payload)
+    if length < 126:
+        header = bytes((0x81, 0x80 | length))
+    elif length < 65536:
+        header = bytes((0x81, 0x80 | 126)) + struct.pack("!H", length)
+    else:
+        header = bytes((0x81, 0x80 | 127)) + struct.pack("!Q", length)
+    masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+    sock.sendall(header + mask + masked)
+
+
+auth = read_json_frame()
 if auth.get("msg") != "authentication" or auth.get("code") != 200:
     raise SystemExit(f"Unexpected bootstrap authentication response: {auth!r}")
 
-payload = json.dumps({"kind": "event", "msg": "connect", "msg_data": {}}).encode("utf-8")
-mask = os.urandom(4)
-length = len(payload)
-if length < 126:
-    header = bytes((0x81, 0x80 | length))
-elif length < 65536:
-    header = bytes((0x81, 0x80 | 126)) + struct.pack("!H", length)
-else:
-    header = bytes((0x81, 0x80 | 127)) + struct.pack("!Q", length)
-masked_payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-sock.sendall(header + mask + masked_payload)
-time.sleep(0.5)
+send_json_frame(
+    {
+        "kind": "req",
+        "id": 1,
+        "msg": "setup_driver",
+        "msg_data": {"reconfigure": False, "setup_data": {}},
+    }
+)
+ack = read_json_frame()
+if ack.get("req_id") != 1 or ack.get("msg") != "result" or ack.get("code") != 200:
+    raise SystemExit(f"Unexpected setup_driver acknowledgement: {ack!r}")
+
+time.sleep(0.75)
 sock.close()
 PY
 
@@ -180,7 +197,7 @@ for _ in $(seq 1 80); do
     cat "$LOG" >&2
     exit 1
   fi
-  if grep -q "ucapi-framework lifecycle attached after bootstrap activation (connect)" "$LOG"; then
+  if grep -q "ucapi-framework lifecycle attached after bootstrap activation (setup_driver)" "$LOG"; then
     framework_ready=true
     break
   fi
@@ -188,16 +205,16 @@ for _ in $(seq 1 80); do
 done
 
 if [[ "$framework_ready" != true ]]; then
-  echo "Framework did not attach after a completed Core-style authentication and CONNECT event" >&2
+  echo "Framework did not attach after authenticated setup_driver was acknowledged" >&2
   cat "$LOG" >&2
   exit 1
 fi
 
-if ! grep -q "Core activated bootstrap Integration API via connect" "$LOG"; then
-  echo "Bootstrap CONNECT event was not routed" >&2
+if ! grep -q "Core activated bootstrap Integration API via setup_driver" "$LOG"; then
+  echo "Bootstrap setup_driver request did not activate deferred startup" >&2
   cat "$LOG" >&2
   exit 1
 fi
 
-echo "ARM64 driver completed Core-style WebSocket authentication before loading ucapi-framework"
+echo "ARM64 driver authenticated and acknowledged first-install setup before loading ucapi-framework"
 cat "$LOG"
