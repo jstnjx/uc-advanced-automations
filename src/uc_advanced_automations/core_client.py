@@ -268,7 +268,10 @@ class CoreClient:
             result = await (await self._ensure_api()).put_entity_command(entity_id, command_id, params)
             return result if isinstance(result, dict) else {}
         except Exception as err:
-            raise self._map_error(err, "Unable to execute entity command") from err
+            raise self._map_error(
+                err,
+                f"Unable to execute entity command {command_id!r} on entity {entity_id!r}",
+            ) from err
 
     async def refresh_available_entities(self, integration_id: str) -> dict[str, Any]:
         try:
