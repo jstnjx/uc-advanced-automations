@@ -162,7 +162,7 @@ function renderTrigger(trigger, index, triggers) {
   } else if (trigger.type === "manual") {
     grid.append(textField("Button label", trigger.label || "Run automation", (value) => { trigger.label = value; }));
     const test = document.createElement("button");
-    test.className = "button secondary button-with-icon";
+    test.className = "button button--secondary button--hybrid";
     test.type = "button";
     setButtonContent(test, "play_arrow", "Run virtual button");
     test.disabled = Boolean(selectedAutomation()?._new || state.dirty);

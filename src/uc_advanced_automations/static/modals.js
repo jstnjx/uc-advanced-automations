@@ -48,7 +48,7 @@ function openMessageDialog({
   cancel.classList.toggle("hidden", !showCancel);
   const confirm = $("messageDialogConfirm");
   confirm.textContent = confirmLabel;
-  confirm.className = `button ${danger ? "danger" : "primary"}`;
+  confirm.className = `button ${danger ? "button--delete" : "button--primary"}`;
 
   return new Promise((resolve) => {
     const onClose = () => {

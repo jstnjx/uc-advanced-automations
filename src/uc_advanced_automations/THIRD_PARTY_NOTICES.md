@@ -19,12 +19,18 @@ Licensed under the MIT License.
 
 Source project: `JackJPowell/unfurled`.
 
-## Material Symbols
+## Unfolded Circle style guide (web UI)
 
-The local SVG icons in `static/icons/` are derived from Google Material Symbols,
-Outlined style, weight 200.
+The web UI stylesheet and design tokens in `static/uc/` (`css/uc.css`,
+`tokens/tokens.css`) come from the unofficial Unfolded Circle style guide for
+integration web UIs. They are derived from the Unfolded Circle Web-Configurator 2.3.3
+source and are licensed under the GNU General Public License v3.0 only
+(`static/uc/LICENSE`).
 
-Copyright Google LLC.
-Licensed under the Apache License, Version 2.0.
+Source project: `jstnjx/unfoldedcircle-style-guide`.
 
-Source project: `google/material-design-icons`.
+## Fonts and icons
+
+`static/uc/assets/fonts/` bundles Poppins and Space Mono (SIL Open Font License 1.1)
+and the Font Awesome 6 Free solid icon font (font: SIL OFL 1.1; see
+`FONTAWESOME-LICENSE.txt`). Licence texts: `static/uc/assets/fonts/LICENSES.md`.

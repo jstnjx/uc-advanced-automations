@@ -30,7 +30,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-uc_advanced_automations = ["static/*", "static/icons/*.svg", "driver.json", "advanced-automations.png", "THIRD_PARTY_NOTICES.md"]
+uc_advanced_automations = ["static/*", "static/uc/*", "static/uc/tokens/*", "static/uc/css/*", "static/uc/assets/fonts/*", "driver.json", "advanced-automations.png", "THIRD_PARTY_NOTICES.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

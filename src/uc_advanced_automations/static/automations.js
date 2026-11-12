@@ -545,7 +545,7 @@ function renderRevisions() {
     copy.append(title, date);
     const restore = document.createElement("button");
     restore.type = "button";
-    restore.className = "button ghost small button-with-icon";
+    restore.className = "button button--blank button--small button--hybrid";
     setButtonContent(restore, "restore", "Restore");
     restore.addEventListener("click", () => restoreRevision(revision.revision_id));
     row.append(copy, restore);
@@ -646,7 +646,7 @@ function renderDeletedRevisions() {
     copy.append(title, date);
     const restore = document.createElement("button");
     restore.type = "button";
-    restore.className = "button ghost small button-with-icon";
+    restore.className = "button button--blank button--small button--hybrid";
     setButtonContent(restore, "restore", "Restore");
     restore.addEventListener("click", () => restoreDeletedRevision(revision.revision_id));
     row.append(copy, restore);

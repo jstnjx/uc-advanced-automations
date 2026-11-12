@@ -134,7 +134,7 @@ function installSequenceV2Editor() {
     const actions = document.createElement("div");
     const add = document.createElement("button");
     add.type = "button";
-    add.className = "button ghost small button-with-icon";
+    add.className = "button button--blank button--small button--hybrid";
     setButtonContent(add, "add", "Add step");
     add.addEventListener("click", () => openStepPicker(item.steps || (item.steps = [])));
     const remove = toolButton("delete", "Delete case", () => {
@@ -217,7 +217,7 @@ function installSequenceV2Editor() {
     });
     const add = document.createElement("button");
     add.type = "button";
-    add.className = "button ghost small button-with-icon";
+    add.className = "button button--blank button--small button--hybrid";
     setButtonContent(add, "add", "Add command");
     add.addEventListener("click", () => {
       step.commands.push({ entity_id: firstEntityId({ commandable: true }), cmd_id: "", params: {}, delay_ms: 0 });
@@ -289,7 +289,7 @@ function installSequenceV2Editor() {
       step.cases.forEach((item, index) => cases.append(chooseCaseEditor(step, item, index)));
       const add = document.createElement("button");
       add.type = "button";
-      add.className = "button ghost small button-with-icon";
+      add.className = "button button--blank button--small button--hybrid";
       setButtonContent(add, "add", "Add case");
       add.addEventListener("click", () => {
         step.cases.push({ name: `Case ${step.cases.length + 1}`, operator: "eq", value: "", steps: [] });
@@ -481,7 +481,7 @@ function installSequenceV2Editor() {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.stepType = type;
-    button.innerHTML = `<span class="mi mi-${icon} step-choice-icon" aria-hidden="true"></span><strong>${title}</strong><span>${description}</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span>`;
+    button.innerHTML = `<i class="fa step-choice-icon" aria-hidden="true">${iconChar(icon)}</i><strong>${title}</strong><span>${description}</span><i class="fa step-choice-arrow" aria-hidden="true">${iconChar("arrow_forward")}</i>`;
     picker.append(button);
   });
 }

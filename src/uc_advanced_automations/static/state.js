@@ -39,9 +39,26 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+// Font Awesome 6 Free (solid) code points for the icon names used by the UI.
+const ICON_CODES = {
+  add: "f067", delete: "f2ed", edit: "f304", play_arrow: "f04b", refresh: "f021",
+  settings: "f013", upload_file: "f093", share: "f1e0", code: "f121", save: "f0c7",
+  arrow_back: "f060", arrow_forward: "f061", expand_more: "f078", expand_less: "f077",
+  close: "f00d", filter_list: "f0b0", search: "f002", drag_indicator: "f58e", check: "f00c",
+  content_copy: "f0c5", download: "f019", visibility: "f06e", devices: "f1e6", timer: "f2f2",
+  alt_route: "f126", hourglass_empty: "f254", http: "f0ac", description: "f15c",
+  select_all: "f14a", deselect: "f0c8", undo: "f0e2", redo: "f01e", history: "f1da",
+  account_tree: "f0e8", compare_arrows: "f362", restore: "f829",
+};
+
+function iconChar(name) {
+  return String.fromCodePoint(parseInt(ICON_CODES[name] || "f128", 16));
+}
+
 function materialIcon(name, className = "") {
-  const icon = document.createElement("span");
-  icon.className = `mi mi-${name}${className ? ` ${className}` : ""}`;
+  const icon = document.createElement("i");
+  icon.className = `fa${className ? ` ${className}` : ""}`;
+  icon.textContent = iconChar(name);
   icon.setAttribute("aria-hidden", "true");
   return icon;
 }

@@ -1,0 +1,134 @@
+/*
+ * Unfolded Circle web-configurator design tokens.
+ *
+ * Part 1 ("official") is copied 1:1 from the Web-Configurator 2.3.3 source
+ * (src/assets/vars/_variables.scss, GPL-3.0-only, (C) Unfolded Circle ApS).
+ * Keep these names: anything ported should reference them, never raw hex values.
+ *
+ * Part 2 ("scale") names values that the configurator uses as literals
+ * (radii, spacing, motion, layers). They are additions of this style guide;
+ * the values are taken from the configurator's SCSS.
+ */
+
+:root {
+  /* ---- Part 1: official tokens -------------------------------------- */
+
+  --uc-app-max-width: 1920px;
+  --uc-navbar-height: 50px;
+
+  --uc-font-family-poppins: "Poppins", sans-serif;
+  --uc-font-family-space-mono: "Space Mono", monospace;
+  --uc-font-family-fa: "Font Awesome 6 Pro", "Font Awesome 6 Free";
+  --uc-font-size-root: 16px;
+
+  --uc-white: #fff;
+  --uc-black: #000;
+
+  /* Neutral ramp, dark (10) to light (90). */
+  --uc-theme-color-10: #121313;
+  --uc-theme-color-10-0: #12131300;
+  --uc-theme-color-20: #1b1d1d;
+  --uc-theme-color-30: #272b2b;
+  --uc-theme-color-40: #444b4b;
+  --uc-theme-color-50: #707c7c;
+  --uc-theme-color-60: #97a5a5;
+  --uc-theme-color-70: #acbcbc;
+  --uc-theme-color-80: #c4d4d4;
+  --uc-theme-color-90: #e2efef;
+  /* The only brand colour. Primary buttons, focus, active toggles, selection. */
+  --uc-theme-accent: #267c8e;
+
+  --uc-success-success: #a2d4bf;
+  --uc-warning-warning: #ffe471;
+  --uc-error-error-30: #ff9f91;
+  --uc-error-error-40: #ff8978;
+  --uc-error-error-60: #c33030;
+  --uc-error-error-80: #9d1616;
+
+  --uc-foreground: #ffffff;
+  --uc-text-text-primary: #ffffff;
+  --uc-text-text-secondary: #acbcbc;
+  --uc-text-text-tertiary: #707c7c;
+
+  /* Page is pure black; content sits on surfaces 1-3. */
+  --uc-background: #000000;
+  --uc-bg-bg: #000000;
+  --uc-bg-bg-surface-1: #1b1d1d;
+  --uc-bg-bg-surface-1-0: #1b1d1d00;
+  --uc-bg-bg-surface-2: #272b2b;
+  --uc-bg-bg-surface-3: #444b4b;
+
+  --uc-buttons-primary-button-primary-text: #ffffff;
+  --uc-buttons-primary-button-primary-bg: #267c8e;
+  --uc-buttons-primary-button-primary-hover-text: #000000;
+  --uc-buttons-primary-button-primary-hover-bg: #ffffff;
+  --uc-buttons-primary-button-primary-disabled-text: #707c7c;
+  --uc-buttons-primary-button-primary-disabled-bg: #272b2b;
+
+  --uc-buttons-secondary-button-secondary-text: #ffffff;
+  --uc-buttons-secondary-button-secondary-bg: #444b4b;
+  --uc-buttons-secondary-button-secondary-hover-text: #000000;
+  --uc-buttons-secondary-button-secondary-hover-bg: #ffffff;
+  --uc-buttons-secondary-button-secondary-disabled-text: #707c7c;
+  --uc-buttons-secondary-button-secondary-disabled-bg: #272b2b;
+
+  --uc-buttons-tertiary-button-tertiary-text: #acbcbc;
+  --uc-buttons-tertiary-button-tertiary-bg: #444b4b;
+  --uc-buttons-tertiary-button-tertiary-hover-text: #000000;
+  --uc-buttons-tertiary-button-tertiary-hover-bg: #ffffff;
+  --uc-buttons-tertiary-button-tertiary-disabled-text: #707c7c;
+  --uc-buttons-tertiary-button-tertiary-disabled-bg: #272b2b;
+
+  /* ---- Part 2: scale (style-guide names for configurator literals) ---- */
+
+  /* Corner radii */
+  --uc-radius-xs: 0.25rem; /* tiny chips inside inputs */
+  --uc-radius-sm: 0.5rem; /* inputs, textareas, info panels */
+  --uc-radius-md: 0.75rem; /* toggle rows, list rows, small tiles */
+  --uc-radius-lg: 1rem; /* cards, panels, dialogs, entity tiles */
+  --uc-radius-button: 1.875rem; /* every .button */
+  --uc-radius-pill: 3.75rem; /* selects, tab items, search fields */
+  --uc-radius-round: 50%;
+
+  /* Spacing: the configurator works in these steps (rem). */
+  --uc-space-1: 0.25rem;
+  --uc-space-2: 0.375rem;
+  --uc-space-3: 0.5rem;
+  --uc-space-4: 0.625rem;
+  --uc-space-5: 0.75rem;
+  --uc-space-6: 1rem;
+  --uc-space-7: 1.25rem;
+  --uc-space-8: 1.5rem;
+  --uc-space-9: 1.875rem;
+  --uc-space-10: 2.5rem;
+  --uc-space-11: 3.75rem;
+
+  /* Motion */
+  --uc-duration-fast: 0.15s; /* checkbox ticks */
+  --uc-duration-input: 0.2s; /* inputs, labels */
+  --uc-duration-toggle: 0.25s; /* switches */
+  --uc-duration-bg: 0.3s; /* buttons, cards ($transition-bg-timing) */
+  --uc-duration-slide: 0.5s; /* panels sliding in */
+  --uc-ease-bounce: cubic-bezier(0.45, 1.25, 0.55, 1); /* remote image slide */
+
+  /* Layers */
+  --uc-z-navbar: 1100;
+  --uc-z-modal: 2500;
+  --uc-z-select: 2505; /* --uc-vselect-z-index; dialogs and open selects */
+  --uc-z-toast: 10000;
+  --uc-vselect-z-index: 2505;
+
+  /* Overlays */
+  --uc-overlay-dialog: rgba(255, 255, 255, 0.08); /* + backdrop-filter: blur(10px) */
+  --uc-overlay-dark: rgba(0, 0, 0, 0.8); /* compact tab menus and inputs on images */
+  --uc-divider: rgba(255, 255, 255, 0.05); /* between panel columns */
+  --uc-error-surface: #2a0404; /* invalid inputs, warning dialogs */
+}
+
+/*
+ * Breakpoints (CSS custom properties can't be used in media queries, so they are
+ * documented here and in tokens.json):
+ *   laptop  max-width: 1200px   navbar compacts
+ *   tablet  max-width: 992px    columns stack, page scrolls, tab menu becomes a select
+ *   phone   max-width: 600px    modals go full width, buttons go full width
+ */

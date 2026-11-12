@@ -21,7 +21,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed boundary bet
 
 ### Automation dashboard
 
-![Advanced Automations dashboard with the automation list, empty-state editor and run log](docs/screenshots/automation-dashboard.png)
+![Advanced Automations dashboard with the automation list and the automation overview](docs/screenshots/automation-dashboard.png)
 
 ### Guided automation editor
 
@@ -307,3 +307,5 @@ python -m pip wheel . --no-deps --no-build-isolation -w dist
 ## License
 
 Released under the [MIT License](LICENSE).
+
+The web UI ships the stylesheet and tokens of the unofficial Unfolded Circle style guide in `src/uc_advanced_automations/static/uc/`, which are licensed under GPL-3.0-only. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

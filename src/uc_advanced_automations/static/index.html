@@ -4,25 +4,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="dark">
   <title>Advanced Automations</title>
   <link rel="icon" type="image/png" href="/static/favicon.png?v=2.0.0-sequence-steps">
+  <link rel="stylesheet" href="/static/uc/css/uc.css?v=2.0.0-sequence-steps">
   <link rel="stylesheet" href="/static/styles.css?v=2.0.0-sequence-steps">
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <div class="brand-lockup">
-        <img src="/static/integration-icon.png?v=2.0.0-sequence-steps" alt="" class="brand-icon">
-        <h1>Advanced Automations</h1>
-      </div>
-      <div class="top-actions">
-        <span id="connectionBadge" class="status-badge"><span></span> Checking…</span>
-        <button id="refreshEntity" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh entities</span></button>
-        <button id="settingsButton" class="button secondary button-with-icon" type="button"><span class="mi mi-settings" aria-hidden="true"></span><span>Settings</span></button>
-      </div>
-    </header>
+  <header class="navbar">
+    <div class="navbar__col">
+      <span class="navbar__brand"><img src="/static/integration-icon.png?v=2.0.0-sequence-steps" alt=""><span>Advanced Automations</span></span>
+    </div>
+    <div class="navbar__col navbar__col--center">
+      <h1 class="navbar__page-name"><span class="navbar__page-name__text">Automations</span></h1>
+    </div>
+    <div class="navbar__col">
+      <span id="connectionBadge" class="status">Checking…</span>
+      <button id="refreshEntity" class="button button--blank button--hybrid aa-navbar-action" type="button" aria-label="Refresh entities" title="Refresh entities"><i class="fa" aria-hidden="true">&#xf021;</i><span>Refresh entities</span></button>
+      <button id="settingsButton" class="button button--blank button--hybrid aa-navbar-action" type="button" aria-label="Settings" title="Settings"><i class="fa" aria-hidden="true">&#xf013;</i><span>Settings</span></button>
+    </div>
+  </header>
 
+  <div class="app shell">
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 
     <main class="layout">
@@ -33,21 +36,21 @@
             <p id="automationCount">0 configured</p>
           </div>
           <div class="sidebar-head-actions">
-            <button id="deletedRevisionsButton" class="icon-button" type="button" aria-label="Deleted automations"><span class="mi mi-restore" aria-hidden="true"></span></button>
-            <button id="addAutomation" class="icon-button" type="button" aria-label="Add automation"><span class="mi mi-add" aria-hidden="true"></span></button>
+            <button id="deletedRevisionsButton" class="button button--blank button--icon" type="button" aria-label="Deleted automations" title="Deleted automations"><i class="fa" aria-hidden="true">&#xf829;</i></button>
+            <button id="addAutomation" class="button button--blank button--icon" type="button" aria-label="Add automation" title="Add automation"><i class="fa" aria-hidden="true">&#xf067;</i></button>
           </div>
         </div>
         <div id="automationList" class="automation-list"></div>
       </aside>
 
-      <section class="workspace panel">
+      <section class="workspace">
         <div id="emptyState" class="empty-state">
           <img class="empty-icon" src="/static/integration-icon.png?v=2.0.0-sequence-steps" alt="">
           <h2>Create an automation</h2>
           <p>Combine entity triggers, conditions, commands and service calls</p>
           <div class="empty-actions">
-            <button id="emptyAdd" class="button primary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>New automation</span></button>
-            <button id="emptyBlueprint" class="button secondary button-with-icon" type="button"><span class="mi mi-upload_file" aria-hidden="true"></span><span>Import blueprint</span></button>
+            <button id="emptyAdd" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>New automation</span></button>
+            <button id="emptyBlueprint" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf093;</i><span>Import blueprint</span></button>
           </div>
         </div>
 
@@ -61,12 +64,12 @@
               <p id="overviewDescription">Automation overview</p>
             </div>
             <div class="editor-actions">
-              <button id="overviewRevisions" class="button ghost button-with-icon" type="button"><span class="mi mi-history" aria-hidden="true"></span><span>Revisions</span></button>
-              <button id="overviewBlueprint" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
-              <button id="overviewRawEditor" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
-              <button id="overviewDelete" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
-              <button id="overviewRun" class="button secondary button-with-icon" type="button"><span class="mi mi-play_arrow" aria-hidden="true"></span><span>Run</span></button>
-              <button id="editAutomation" class="button primary button-with-icon" type="button"><span class="mi mi-edit" aria-hidden="true"></span><span>Edit</span></button>
+              <button id="overviewRevisions" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf1da;</i><span>Revisions</span></button>
+              <button id="overviewBlueprint" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf1e0;</i><span>Blueprint</span></button>
+              <button id="overviewRawEditor" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf121;</i><span>Raw JSON</span></button>
+              <button id="overviewDelete" class="button button--danger button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf2ed;</i><span>Delete</span></button>
+              <button id="overviewRun" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf04b;</i><span>Run</span></button>
+              <button id="editAutomation" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf304;</i><span>Edit</span></button>
             </div>
           </div>
           <div id="overviewMetrics" class="overview-metrics"></div>
@@ -75,7 +78,7 @@
             <div id="automationTimeline" class="automation-timeline"></div>
           </section>
           <section class="overview-section">
-            <div class="overview-section-head"><h3>Recent run history</h3><button id="refreshAutomationHistory" class="button ghost button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh</span></button></div>
+            <div class="overview-section-head"><h3>Recent run history</h3><button id="refreshAutomationHistory" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf021;</i><span>Refresh</span></button></div>
             <div id="recentRunHistory" class="recent-run-history"></div>
           </section>
         </div>
@@ -86,15 +89,15 @@
               <h2 id="editorTitle">Automation</h2>
             </div>
             <div class="editor-actions">
-              <button id="overviewBackButton" class="button ghost button-with-icon" type="button"><span class="mi mi-arrow_back" aria-hidden="true"></span><span>Overview</span></button>
-              <button id="undoEdit" class="icon-button" type="button" aria-label="Undo" disabled><span class="mi mi-undo" aria-hidden="true"></span></button>
-              <button id="redoEdit" class="icon-button" type="button" aria-label="Redo" disabled><span class="mi mi-redo" aria-hidden="true"></span></button>
-              <button id="revisionsButton" class="button ghost button-with-icon" type="button"><span class="mi mi-history" aria-hidden="true"></span><span>Revisions</span></button>
-              <button id="blueprintButton" class="button ghost button-with-icon" type="button"><span class="mi mi-share" aria-hidden="true"></span><span>Blueprint</span></button>
-              <button id="rawEditorButton" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Raw JSON</span></button>
-              <button id="deleteAutomation" class="button danger ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Delete</span></button>
-              <button id="runAutomation" class="button secondary button-with-icon" type="button"><span class="mi mi-play_arrow" aria-hidden="true"></span><span>Run</span></button>
-              <button id="saveAutomation" class="button primary button-with-icon" type="button"><span class="mi mi-save" aria-hidden="true"></span><span id="saveAutomationLabel">Save</span></button>
+              <button id="overviewBackButton" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf060;</i><span>Overview</span></button>
+              <button id="undoEdit" class="button button--blank button--icon" type="button" aria-label="Undo" title="Undo" disabled><i class="fa" aria-hidden="true">&#xf0e2;</i></button>
+              <button id="redoEdit" class="button button--blank button--icon" type="button" aria-label="Redo" title="Redo" disabled><i class="fa" aria-hidden="true">&#xf01e;</i></button>
+              <button id="revisionsButton" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf1da;</i><span>Revisions</span></button>
+              <button id="blueprintButton" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf1e0;</i><span>Blueprint</span></button>
+              <button id="rawEditorButton" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf121;</i><span>Raw JSON</span></button>
+              <button id="deleteAutomation" class="button button--danger button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf2ed;</i><span>Delete</span></button>
+              <button id="runAutomation" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf04b;</i><span>Run</span></button>
+              <button id="saveAutomation" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf0c7;</i><span id="saveAutomationLabel">Save</span></button>
             </div>
           </div>
 
@@ -137,15 +140,21 @@
                 <span>Description</span>
                 <input id="automationDescription" type="text" maxlength="240" placeholder="Optional description">
               </label>
-              <label class="switch-row">
-                <input id="automationEnabled" type="checkbox" checked>
-                <span class="switch"></span>
-                <span>Automation enabled</span>
+              <label class="form-item form-item--toggle form-item--toggle--settings switch-row wide">
+                <span class="form-item--toggle__body">
+                  <span class="form-item--toggle__label">Automation enabled</span>
+                  <input id="automationEnabled" type="checkbox" role="switch" checked>
+                  <span class="form-item--toggle__switch"></span>
+                </span>
+                <span class="form-item--toggle__description">While off, triggers and the remote command don't start it.</span>
               </label>
-              <label class="switch-row">
-                <input id="automationCommandEnabled" type="checkbox" checked>
-                <span class="switch"></span>
-                <span>Expose as a Remote command and touchscreen button</span>
+              <label class="form-item form-item--toggle form-item--toggle--settings switch-row wide">
+                <span class="form-item--toggle__body">
+                  <span class="form-item--toggle__label">Expose as a Remote command and touchscreen button</span>
+                  <input id="automationCommandEnabled" type="checkbox" role="switch" checked>
+                  <span class="form-item--toggle__switch"></span>
+                </span>
+                <span class="form-item--toggle__description">Adds the remote command above as a command and a touchscreen button on the Remote.</span>
               </label>
             </div>
           </section>
@@ -157,24 +166,24 @@
             </div>
             <div class="entity-picker">
               <button id="entityDropdownToggle" class="entity-dropdown-toggle" type="button" aria-expanded="false">
-                <span class="mi mi-devices entity-picker-icon" aria-hidden="true"></span>
+                <i class="fa entity-picker-icon" aria-hidden="true">&#xf1e6;</i>
                 <span class="entity-dropdown-copy">
                   <strong>Entities</strong>
                   <small id="entityDropdownSummary">Select entities…</small>
                 </span>
-                <span class="mi mi-expand_more dropdown-chevron" aria-hidden="true"></span>
+                <i class="fa dropdown-chevron" aria-hidden="true">&#xf078;</i>
               </button>
               <div id="entityDropdownPanel" class="entity-dropdown-panel hidden">
                 <div class="entity-picker-toolbar">
-                  <label class="entity-search-field">
-                    <span class="mi mi-search" aria-hidden="true"></span>
+                  <label class="form-item form-item--search entity-search-field">
                     <input id="entitySearch" type="search" aria-label="Search entities" placeholder="Search entities">
+                    <i class="fa form-item--search__icon" aria-hidden="true">&#xf002;</i>
                   </label>
-                  <button id="selectAllEntities" class="button ghost button-with-icon" type="button"><span class="mi mi-select_all" aria-hidden="true"></span><span>Select shown</span></button>
-                  <button id="clearEntitySelection" class="button ghost button-with-icon" type="button"><span class="mi mi-deselect" aria-hidden="true"></span><span>Clear unused</span></button>
+                  <button id="selectAllEntities" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf14a;</i><span>Select shown</span></button>
+                  <button id="clearEntitySelection" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf0c8;</i><span>Clear unused</span></button>
                 </div>
                 <details class="entity-filter-details">
-                  <summary><span class="mi mi-filter_list" aria-hidden="true"></span><span>Filters</span></summary>
+                  <summary><i class="fa" aria-hidden="true">&#xf0b0;</i><span>Filters</span></summary>
                   <div class="entity-filter-grid">
                     <fieldset class="entity-filter-group">
                       <legend>Entity type</legend>
@@ -197,7 +206,7 @@
                 <h3>Define triggers</h3>
                 
               </div>
-              <button id="addTrigger" class="button secondary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Add trigger</span></button>
+              <button id="addTrigger" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>Add trigger</span></button>
             </div>
             <div class="trigger-behavior-card">
               <label class="field">
@@ -218,25 +227,25 @@
                 <h3>Define sequence</h3>
                 
               </div>
-              <button id="addRootStep" class="button secondary button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Add step</span></button>
+              <button id="addRootStep" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>Add step</span></button>
             </div>
             <div id="steps" class="steps drop-zone"></div>
             <details class="recovery-flow">
               <summary>Cancellation cleanup</summary>
-              <div class="branch-head"><strong>Runs when an active automation is cancelled or replaced</strong><button id="addCancellationStep" class="button ghost small button-with-icon" type="button"><span class="mi mi-add"></span><span>Add step</span></button></div>
+              <div class="branch-head"><strong>Runs when an active automation is cancelled or replaced</strong><button id="addCancellationStep" class="button button--blank button--small button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>Add step</span></button></div>
               <div id="cancellationSteps" class="steps drop-zone"></div>
             </details>
             <details class="recovery-flow">
               <summary>Rollback sequence</summary>
-              <div class="branch-head"><strong>Runs after an unhandled failure</strong><button id="addRollbackStep" class="button ghost small button-with-icon" type="button"><span class="mi mi-add"></span><span>Add step</span></button></div>
+              <div class="branch-head"><strong>Runs after an unhandled failure</strong><button id="addRollbackStep" class="button button--blank button--small button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>Add step</span></button></div>
               <div id="rollbackSteps" class="steps drop-zone"></div>
             </details>
           </section>
 
           <div class="flow-navigation">
-            <button id="flowBack" class="button ghost button-with-icon" type="button"><span class="mi mi-arrow_back" aria-hidden="true"></span><span>Back</span></button>
+            <button id="flowBack" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf060;</i><span>Back</span></button>
             <span class="spacer"></span>
-            <button id="flowNext" class="button primary button-with-icon" type="button"><span id="flowNextLabel">Continue</span><span class="mi mi-arrow_forward" aria-hidden="true"></span></button>
+            <button id="flowNext" class="button button--secondary button--hybrid button--hybrid--reversed" type="button"><span id="flowNextLabel">Continue</span><i class="fa" aria-hidden="true">&#xf061;</i></button>
           </div>
         </div>
       </section>
@@ -249,13 +258,15 @@
           
         </div>
         <div class="log-actions">
-          <label class="switch-row compact-switch">
-            <input id="continuousLogs" type="checkbox">
-            <span class="switch"></span>
-            <span>Continuous refresh</span>
+          <label class="form-item form-item--toggle compact-switch">
+            <span class="form-item--toggle__body">
+              <span class="form-item--toggle__label">Continuous refresh</span>
+              <input id="continuousLogs" type="checkbox" role="switch">
+              <span class="form-item--toggle__switch"></span>
+            </span>
           </label>
-          <button id="refreshLogs" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Refresh</span></button>
-          <button id="clearLogView" class="button ghost button-with-icon" type="button"><span class="mi mi-delete" aria-hidden="true"></span><span>Clear view</span></button>
+          <button id="refreshLogs" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf021;</i><span>Refresh</span></button>
+          <button id="clearLogView" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf2ed;</i><span>Clear view</span></button>
         </div>
       </div>
       <div id="logs" class="logs"><div class="log-empty">No runs yet.</div></div>
@@ -269,7 +280,7 @@
           <h2>Remote connection settings</h2>
           <p>The API key is normally created by the integration setup flow.</p>
         </div>
-        <button class="icon-button" value="cancel" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
+        <button class="button button--blank button--icon" value="cancel" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button>
       </div>
       <label class="field">
         <span>Remote WebSocket URL</span>
@@ -300,10 +311,10 @@
       </div>
       <div id="settingsResult" class="inline-result hidden"></div>
       <div class="dialog-actions">
-        <button id="testConnection" class="button secondary button-with-icon" type="button"><span class="mi mi-refresh" aria-hidden="true"></span><span>Test connection</span></button>
+        <button id="testConnection" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf021;</i><span>Test connection</span></button>
         <span class="spacer"></span>
-        <button class="button ghost" value="cancel">Cancel</button>
-        <button id="saveSettings" class="button primary button-with-icon" type="button"><span class="mi mi-save" aria-hidden="true"></span><span>Save settings</span></button>
+        <button class="button button--secondary" value="cancel">Cancel</button>
+        <button id="saveSettings" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf0c7;</i><span>Save settings</span></button>
       </div>
     </form>
   </dialog>
@@ -315,13 +326,13 @@
           <h2 id="messageDialogTitle">Message</h2>
           <p id="messageDialogText"></p>
         </div>
-        <button class="icon-button" value="cancel" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
+        <button class="button button--blank button--icon" value="cancel" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button>
       </div>
       <ul id="messageDialogDetails" class="validation-list hidden"></ul>
       <div class="dialog-actions">
         <span class="spacer"></span>
-        <button id="messageDialogCancel" class="button ghost" value="cancel">Cancel</button>
-        <button id="messageDialogConfirm" class="button primary" value="default">OK</button>
+        <button id="messageDialogCancel" class="button button--secondary" value="cancel">Cancel</button>
+        <button id="messageDialogConfirm" class="button button--primary" value="default">OK</button>
       </div>
     </form>
   </dialog>
@@ -333,16 +344,16 @@
           <h2>Add sequence step</h2>
           
         </div>
-        <button id="closeStepDialog" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
+        <button id="closeStepDialog" class="button button--blank button--icon" type="button" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button>
       </div>
       <div class="step-picker" id="stepPicker">
-        <button type="button" data-step-type="command"><span class="mi mi-devices step-choice-icon" aria-hidden="true"></span><strong>Entity</strong><span>Control an entity</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="delay"><span class="mi mi-timer step-choice-icon" aria-hidden="true"></span><strong>Delay</strong><span>Pause before the next step</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="condition"><span class="mi mi-alt_route step-choice-icon" aria-hidden="true"></span><strong>If / else</strong><span>Branch when conditions match</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="wait"><span class="mi mi-hourglass_empty step-choice-icon" aria-hidden="true"></span><strong>Wait for condition</strong><span>Choose explicit match and timeout outcomes</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="parallel"><span class="mi mi-account_tree step-choice-icon" aria-hidden="true"></span><strong>Parallel group</strong><span>Run multiple branches at the same time</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="http"><span class="mi mi-http step-choice-icon" aria-hidden="true"></span><strong>HTTP request</strong><span>Call an endpoint</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
-        <button type="button" data-step-type="log"><span class="mi mi-description step-choice-icon" aria-hidden="true"></span><strong>Log message</strong><span>Add a log entry</span><span class="mi mi-arrow_forward step-choice-arrow" aria-hidden="true"></span></button>
+        <button type="button" data-step-type="command"><i class="fa step-choice-icon" aria-hidden="true">&#xf1e6;</i><strong>Entity</strong><span>Control an entity</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="delay"><i class="fa step-choice-icon" aria-hidden="true">&#xf2f2;</i><strong>Delay</strong><span>Pause before the next step</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="condition"><i class="fa step-choice-icon" aria-hidden="true">&#xf126;</i><strong>If / else</strong><span>Branch when conditions match</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="wait"><i class="fa step-choice-icon" aria-hidden="true">&#xf254;</i><strong>Wait for condition</strong><span>Choose explicit match and timeout outcomes</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="parallel"><i class="fa step-choice-icon" aria-hidden="true">&#xf0e8;</i><strong>Parallel group</strong><span>Run multiple branches at the same time</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="http"><i class="fa step-choice-icon" aria-hidden="true">&#xf0ac;</i><strong>HTTP request</strong><span>Call an endpoint</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
+        <button type="button" data-step-type="log"><i class="fa step-choice-icon" aria-hidden="true">&#xf15c;</i><strong>Log message</strong><span>Add a log entry</span><i class="fa step-choice-arrow" aria-hidden="true">&#xf061;</i></button>
       </div>
     </div>
   </dialog>
@@ -354,7 +365,7 @@
           <h2>Raw automation JSON</h2>
           
         </div>
-        <button id="closeRawEditor" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
+        <button id="closeRawEditor" class="button button--blank button--icon" type="button" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button>
       </div>
       <label class="field">
         <span>Automation JSON</span>
@@ -362,12 +373,12 @@
       </label>
       <div id="rawEditorResult" class="inline-result hidden"></div>
       <div class="dialog-actions">
-        <button id="rawUndo" class="button ghost button-with-icon" type="button"><span class="mi mi-undo" aria-hidden="true"></span><span>Undo</span></button>
-        <button id="rawRedo" class="button ghost button-with-icon" type="button"><span class="mi mi-redo" aria-hidden="true"></span><span>Redo</span></button>
-        <button id="formatRawJson" class="button ghost button-with-icon" type="button"><span class="mi mi-code" aria-hidden="true"></span><span>Format JSON</span></button>
+        <button id="rawUndo" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf0e2;</i><span>Undo</span></button>
+        <button id="rawRedo" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf01e;</i><span>Redo</span></button>
+        <button id="formatRawJson" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf121;</i><span>Format JSON</span></button>
         <span class="spacer"></span>
-        <button id="cancelRawEditor" class="button ghost" type="button">Cancel</button>
-        <button id="applyRawEditor" class="button primary button-with-icon" type="button"><span class="mi mi-check" aria-hidden="true"></span><span>Apply changes</span></button>
+        <button id="cancelRawEditor" class="button button--secondary" type="button">Cancel</button>
+        <button id="applyRawEditor" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf00c;</i><span>Apply changes</span></button>
       </div>
     </div>
   </dialog>
@@ -379,11 +390,11 @@
           <h2>Automation blueprints</h2>
           
         </div>
-        <button id="closeBlueprintDialog" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close" aria-hidden="true"></span></button>
+        <button id="closeBlueprintDialog" class="button button--blank button--icon" type="button" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button>
       </div>
-      <div class="blueprint-tabs" role="tablist">
-        <button id="blueprintExportTab" class="active" type="button">Export</button>
-        <button id="blueprintImportTab" type="button">Import</button>
+      <div class="blueprint-tabs button-group" role="group" aria-label="Blueprint mode">
+        <button id="blueprintExportTab" class="button active" type="button">Export</button>
+        <button id="blueprintImportTab" class="button" type="button">Import</button>
       </div>
       <section id="blueprintExportPanel" class="blueprint-panel">
         <label class="field">
@@ -391,26 +402,26 @@
           <textarea id="blueprintExportJson" class="code-editor" readonly></textarea>
         </label>
         <div class="dialog-actions">
-          <button id="copyBlueprint" class="button ghost button-with-icon" type="button"><span class="mi mi-content_copy" aria-hidden="true"></span><span>Copy</span></button>
+          <button id="copyBlueprint" class="button button--blank button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf0c5;</i><span>Copy</span></button>
           <span class="spacer"></span>
-          <button id="downloadBlueprint" class="button primary button-with-icon" type="button"><span class="mi mi-download" aria-hidden="true"></span><span>Download blueprint</span></button>
+          <button id="downloadBlueprint" class="button button--primary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf019;</i><span>Download blueprint</span></button>
         </div>
       </section>
       <section id="blueprintImportPanel" class="blueprint-panel hidden">
         <div class="import-source-row">
-          <label class="button secondary file-button button-with-icon"><span class="mi mi-upload_file" aria-hidden="true"></span><span>Choose blueprint file</span><input id="blueprintFile" type="file" accept="application/json,.json"></label>
+          <label class="button button--secondary button--hybrid file-button"><i class="fa" aria-hidden="true">&#xf093;</i><span>Choose blueprint file</span><input id="blueprintFile" type="file" accept="application/json,.json"></label>
           <span>or paste blueprint JSON below</span>
         </div>
         <label class="field">
           <span>Blueprint JSON</span>
           <textarea id="blueprintImportJson" class="code-editor" spellcheck="false"></textarea>
         </label>
-        <button id="readBlueprint" class="button secondary button-with-icon" type="button"><span class="mi mi-visibility" aria-hidden="true"></span><span>Review blueprint</span></button>
+        <button id="readBlueprint" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf06e;</i><span>Review blueprint</span></button>
         <div id="blueprintImportResult" class="inline-result hidden"></div>
         <div id="blueprintEntityMappings" class="blueprint-mappings hidden"></div>
         <div class="dialog-actions">
           <span class="spacer"></span>
-          <button id="createFromBlueprint" class="button primary hidden button-with-icon" type="button"><span class="mi mi-add" aria-hidden="true"></span><span>Create automation</span></button>
+          <button id="createFromBlueprint" class="button button--primary button--hybrid hidden" type="button"><i class="fa" aria-hidden="true">&#xf067;</i><span>Create automation</span></button>
         </div>
       </section>
     </div>
@@ -418,12 +429,12 @@
 
   <dialog id="revisionsDialog" class="wide-dialog">
     <div class="dialog-card">
-      <div class="dialog-head"><div><h2>Automation revisions</h2></div><button id="closeRevisions" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close"></span></button></div>
+      <div class="dialog-head"><div><h2>Automation revisions</h2></div><button id="closeRevisions" class="button button--blank button--icon" type="button" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button></div>
       <div id="revisionList" class="revision-list"></div>
       <div class="revision-compare-controls">
         <label class="field"><span>Compare from</span><select id="revisionFrom"></select></label>
         <label class="field"><span>Compare to</span><select id="revisionTo"></select></label>
-        <button id="compareRevisions" class="button secondary button-with-icon" type="button"><span class="mi mi-compare_arrows"></span><span>Compare</span></button>
+        <button id="compareRevisions" class="button button--secondary button--hybrid" type="button"><i class="fa" aria-hidden="true">&#xf362;</i><span>Compare</span></button>
       </div>
       <pre id="revisionDiff" class="revision-diff hidden"></pre>
     </div>
@@ -431,13 +442,13 @@
 
   <dialog id="deletedRevisionsDialog" class="wide-dialog">
     <div class="dialog-card">
-      <div class="dialog-head"><div><h2>Deleted automations</h2></div><button id="closeDeletedRevisions" class="icon-button" type="button" aria-label="Close"><span class="mi mi-close"></span></button></div>
+      <div class="dialog-head"><div><h2>Deleted automations</h2></div><button id="closeDeletedRevisions" class="button button--blank button--icon" type="button" aria-label="Close" title="Close"><i class="fa" aria-hidden="true">&#xf00d;</i></button></div>
       <div id="deletedRevisionList" class="revision-list"></div>
     </div>
   </dialog>
 
   <div id="savingOverlay" class="saving-overlay hidden" role="status" aria-live="polite" aria-busy="true">
-    <div class="saving-card"><span class="loading-spinner"></span><strong id="savingOverlayText">Saving automation…</strong></div>
+    <div class="saving-card"><span class="uc-spinner loading-spinner" aria-hidden="true"></span><strong id="savingOverlayText">Saving automation…</strong></div>
   </div>
 
   <script src="/static/state.js?v=2.0.0-sequence-steps" defer></script>

@@ -162,7 +162,9 @@ function toolButton(iconName, label, handler) {
   const button = document.createElement("button");
   button.type = "button";
   button.append(materialIcon(iconName));
+  button.className = "button button--blank button--icon";
   button.setAttribute("aria-label", label);
+  button.title = label;
   button.addEventListener("click", handler);
   return button;
 }
@@ -221,7 +223,7 @@ function renderStepBody(step) {
     step.branches.forEach((branch, index) => block.append(parallelBranchEditor(step, branch, index)));
     const addBranch = document.createElement("button");
     addBranch.type = "button";
-    addBranch.className = "button ghost small button-with-icon";
+    addBranch.className = "button button--blank button--small button--hybrid";
     setButtonContent(addBranch, "add", "Add parallel branch");
     addBranch.addEventListener("click", () => {
       step.branches.push({ name: `Branch ${step.branches.length + 1}`, steps: [] });
@@ -259,7 +261,7 @@ function parallelBranchEditor(parent, branch, index) {
   const actions = document.createElement("div");
   const add = document.createElement("button");
   add.type = "button";
-  add.className = "button ghost small button-with-icon";
+  add.className = "button button--blank button--small button--hybrid";
   setButtonContent(add, "add", "Add step");
   add.addEventListener("click", () => openStepPicker(branch.steps));
   const remove = toolButton("delete", "Delete branch", () => {
@@ -451,7 +453,7 @@ function rangeFields(step) {
   const row = document.createElement("div");
   row.style.display = "grid";
   row.style.gridTemplateColumns = "1fr 1fr";
-  row.style.gap = "7px";
+  row.style.gap = "var(--uc-space-3)";
   const min = document.createElement("input");
   min.type = "number"; min.min = "100"; min.max = "599"; min.value = step.status_min ?? 200;
   min.addEventListener("input", () => { step.status_min = Number(min.value); markDirty(); });
@@ -473,11 +475,11 @@ function conditionGroup(group) {
     { value: "any", label: "Continue when any condition matches" },
   ], (value) => { group.mode = value; }));
   const addEntity = document.createElement("button");
-  addEntity.type = "button"; addEntity.className = "button ghost small button-with-icon";
+  addEntity.type = "button"; addEntity.className = "button button--blank button--small button--hybrid";
   setButtonContent(addEntity, "add", "Entity condition");
   addEntity.addEventListener("click", () => { group.conditions.push(makeCondition("entity")); markDirty(); renderEditor(); });
   const addTime = document.createElement("button");
-  addTime.type = "button"; addTime.className = "button ghost small button-with-icon";
+  addTime.type = "button"; addTime.className = "button button--blank button--small button--hybrid";
   setButtonContent(addTime, "add", "Time condition");
   addTime.addEventListener("click", () => { group.conditions.push(makeCondition("time")); markDirty(); renderEditor(); });
   toolbar.append(addEntity, addTime);
@@ -532,9 +534,10 @@ function conditionRow(condition, index, conditions) {
   }
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.className = "button danger ghost small icon-only-button";
+  remove.className = "button button--danger button--icon icon-only-button";
   remove.append(materialIcon("delete"));
   remove.setAttribute("aria-label", "Remove condition");
+  remove.title = "Remove condition";
   remove.addEventListener("click", async () => {
     if (conditions.length <= 1) {
       await openMessageDialog({ title: "Condition required", message: "A condition group must contain at least one condition." });
@@ -570,7 +573,7 @@ function branchEditor(label, key, steps, parent) {
   title.textContent = label;
   const add = document.createElement("button");
   add.type = "button";
-  add.className = "button ghost small button-with-icon";
+  add.className = "button button--blank button--small button--hybrid";
   setButtonContent(add, "add", "Add step");
   add.addEventListener("click", () => openStepPicker(parent[key]));
   head.append(title, add);
@@ -697,7 +700,7 @@ function jsonField(labelText, value, onChange, wide = false) {
       textarea.dataset.invalid = "false";
       markDirty();
     } catch (_) {
-      textarea.style.borderColor = "var(--danger)";
+      textarea.style.borderColor = "var(--uc-error-error-60)";
       textarea.dataset.invalid = "true";
     }
   });

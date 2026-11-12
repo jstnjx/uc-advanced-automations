@@ -5,8 +5,8 @@ async function pollStatus() {
   try {
     const status = await api("/api/status");
     const badge = $("connectionBadge");
-    badge.className = `status-badge ${status.core_connected ? "connected" : status.core_error ? "error" : ""}`;
-    badge.innerHTML = `<span></span>${status.core_connected ? `Remote connected · ${status.running} running` : status.api_key_configured ? "Remote not connected" : "Setup required"}`;
+    badge.className = `status ${status.core_connected ? "status--ok" : status.core_error ? "status--error" : "status--warn"}`;
+    badge.textContent = status.core_connected ? `Remote connected · ${status.running} running` : status.api_key_configured ? "Remote not connected" : "Setup required";
   } catch (_) {}
 }
 
